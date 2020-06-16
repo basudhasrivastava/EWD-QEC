@@ -238,7 +238,7 @@ class RL():
                 ####
 
                 if reward != 0: 
-                	print("num_of_steps_per_episode: " + str(num_of_steps_per_episode))
+                    print("num_of_steps_per_episode: " + str(num_of_steps_per_episode))
 
                 # generate memory entry
                 perspective, action_memory, reward, next_perspective, terminal = self.toric.generate_memory_entry(
@@ -436,7 +436,101 @@ class RL():
 
         return error_corrected_list, ground_state_list, average_number_of_steps_list, mean_q_list, failed_syndroms, ground_state_list, prediction_list_p_error, failure_rate
 
+#Modification of prediction() that takes in a qubit matrix and returns correction matrix + all the old variables
+#Note that it assumes that all syndromes are solved
+    def prediction_mod(self, qubit_matrix, num_of_predictions=1, epsilon=0.0, num_of_steps=50, PATH=None, plot_one_episode=False, show_network=False, show_plot=False, 
+        prediction_list_p_error=float, minimum_nbr_of_qubit_errors=0, print_Q_values=False, save_prediction=True):
+        num_of_predictions=1 # Always 1
+        # load network for prediction and set eval mode 
+        if PATH != None:
+            self.load_network(PATH)
+        self.policy_net.eval()
+        
+        # init matrices 
+        ground_state_list = np.zeros(len(prediction_list_p_error))
+        error_corrected_list = np.zeros(len(prediction_list_p_error))
+        average_number_of_steps_list = np.zeros(len(prediction_list_p_error))
+        mean_q_list = np.zeros(len(prediction_list_p_error))
+        
+        #new
+        correction_list = []
+        
+        failed_syndroms = []
+        failure_rate = 0
+        # loop through different p_error
+        for i, p_error in enumerate(prediction_list_p_error):
+            ground_state = np.ones(num_of_predictions, dtype=bool)
+            error_corrected = np.zeros(num_of_predictions)
+            mean_steps_per_p_error = 0
+            mean_q_per_p_error = 0
+            steps_counter = 0
+            for j in range(num_of_predictions):	
+                num_of_steps_per_episode = 0
+                prev_action = 0
+                terminal_state = 0
+                # generate random syndrom
+                self.toric = Toric_code(self.system_size)
 
+                if minimum_nbr_of_qubit_errors == 0:
+                    #self.toric.generate_random_error(p_error)
+                    self.toric.qubit_matrix = qubit_matrix
+                    self.toric.syndrom('state')
+                else:
+                    self.toric.generate_n_random_errors(minimum_nbr_of_qubit_errors)
+                
+                terminal_state = self.toric.terminal_state(self.toric.current_state)
+                # plot one episode
+                if plot_one_episode == True and j == 0 and i == 0:
+                    self.toric.plot_toric_code(self.toric.current_state, 'initial_syndrom')
+                
+                init_qubit_state = deepcopy(self.toric.qubit_matrix)
+                # solve syndrome
+                while terminal_state == 1 and num_of_steps_per_episode < num_of_steps:
+                    steps_counter += 1
+                    num_of_steps_per_episode += 1
+                    # choose greedy action
+                    action, q_value = self.select_action_prediction(number_of_actions=self.number_of_actions, 
+                                                                    epsilon=epsilon,
+                                                                    grid_shift=self.grid_shift,
+                                                                    prev_action=prev_action)
+                    prev_action = action
+                    self.toric.step(action)
+                    self.toric.current_state = self.toric.next_state
+                    
+                    #save the correction chain 
+                    self.correction_chain.toric.step(action)
+                    self.correction_chain.toric.current_state = self.correction_chain.toric.next_state
+                    
+                    terminal_state = self.toric.terminal_state(self.toric.current_state)
+                    mean_q_per_p_error = incremental_mean(q_value, mean_q_per_p_error, steps_counter)
+                    
+                    if plot_one_episode == True and j == 0 and i == 0:
+                        self.toric.plot_toric_code(self.toric.current_state, 'step_'+str(num_of_steps_per_episode))
+
+                # compute mean steps 
+                mean_steps_per_p_error = incremental_mean(num_of_steps_per_episode, mean_steps_per_p_error, j+1)
+                # save error corrected 
+                error_corrected[j] = self.toric.terminal_state(self.toric.current_state) # 0: error corrected # 1: error not corrected    
+                # update groundstate
+                self.toric.eval_ground_state()                                                          
+                ground_state[j] = self.toric.ground_state # False non trivial loops
+
+                if terminal_state == 1 or self.toric.ground_state == False:
+                    failed_syndroms.append(init_qubit_state)
+                    failed_syndroms.append(self.toric.qubit_matrix)
+                    if self.toric.ground_state == False: 
+                        correction_list.append(self.correction_chain.toric.qubit_matrix)      
+                    
+
+            success_rate = (num_of_predictions - np.sum(error_corrected)) / num_of_predictions
+            error_corrected_list[i] = success_rate
+            ground_state_change = (num_of_predictions - np.sum(ground_state)) / num_of_predictions
+            ground_state_list[i] =  1 - ground_state_change
+            average_number_of_steps_list[i] = np.round(mean_steps_per_p_error, 1)
+            mean_q_list[i] = np.round(mean_q_per_p_error, 3)
+        
+        return ground_state_list, failed_syndroms, success_rate, correction_list
+            
     def train_for_n_epochs(self, training_steps=int, epochs=int, num_of_predictions=100, num_of_steps_prediction=50, target_update=100, 
         optimizer=str, save=True, directory_path='network', prediction_list_p_error=[0.1],
         batch_size=32, replay_start_size=32, minimum_nbr_of_qubit_errors=0):
