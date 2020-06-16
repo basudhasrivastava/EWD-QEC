@@ -442,8 +442,7 @@ class RL():
         prediction_list_p_error=float, minimum_nbr_of_qubit_errors=0, print_Q_values=False, save_prediction=True):
         num_of_predictions=1 # Always 1
         # load network for prediction and set eval mode 
-        if PATH != None:
-            self.load_network(PATH)
+
         self.policy_net.eval()
         
         # init matrices 

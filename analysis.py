@@ -23,9 +23,10 @@ def main(file_path, RL_args, prediction_args):
     data = []
 
     rl = RL(**RL_args)
+    rl.load_network(prediction_args['PATH'])
     reader = rl.mcmc_data_reader
 
-    for i in tqdm(range(20)):
+    for i in tqdm(range(reader.get_capacity())):
         qubit_matrix, eq_distr = reader.next()
 
         success, correction_list = rl.prediction_mod(**prediction_args, qubit_matrix=qubit_matrix) # Anpassa efter Alexeis kod
@@ -56,7 +57,7 @@ if __name__ == '__main__':
     size = 5
     p_error = 0.1
     file_path = './data/data_5x5_p_0.2.xz'
-    prediction_args = {'prediction_list_p_error': [0.0], 'PATH': '.\\network\Size_5_NN_11.pt'}
+    prediction_args = {'prediction_list_p_error': [0.0], 'PATH': './network/Size_5_NN_11.pt'}
     RL_args = {'Network': NN_11, 'Network_name': 'Size_5_NN_11', 'system_size': size, 
         'p_error': p_error, 'replay_memory_capacity': 1e4, 'DATA_FILE_PATH': file_path}
     main(file_path, RL_args, prediction_args)
