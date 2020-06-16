@@ -79,7 +79,6 @@ def getMCMCstats():
     df = pd.concat((pd.DataFrame({"qubit":[unique_elements[i]], "nbr_err":[np.count_nonzero(unique_elements[i])], "nbr_occ":[unique_counts[i]], "eq_class": define_equivalence_class(unique_elements[i])}) for i in range(len(unique_elements))),
             ignore_index=True)
     
-
     print(df.loc[df['nbr_err'] == shortest])
     print(df.loc[df['nbr_err'] == shortest+1])
     print(df.loc[df['nbr_err'] == shortest+2])
