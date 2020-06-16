@@ -512,15 +512,12 @@ class RL():
                 # save error corrected 
                 error_corrected[j] = self.toric.terminal_state(self.toric.current_state) # 0: error corrected # 1: error not corrected    
                 # update groundstate
-                self.toric.eval_ground_state()                                                          
+                self.toric.eval_ground_state()
                 ground_state[j] = self.toric.ground_state # False non trivial loops
 
-                if terminal_state == 1 or self.toric.ground_state == False:
-                    failed_syndroms.append(init_qubit_state)
-                    failed_syndroms.append(self.toric.qubit_matrix)
-                    if self.toric.ground_state == False: 
-                        correction_list.append(self.correction_chain.toric.qubit_matrix)      
-                    
+                success = False if terminal_state == 1 else True
+                
+                correction_list.append(self.correction_chain.toric.qubit_matrix)
 
             success_rate = (num_of_predictions - np.sum(error_corrected)) / num_of_predictions
             error_corrected_list[i] = success_rate
@@ -529,7 +526,7 @@ class RL():
             average_number_of_steps_list[i] = np.round(mean_steps_per_p_error, 1)
             mean_q_list[i] = np.round(mean_q_per_p_error, 3)
         
-        return ground_state_list, failed_syndroms, success_rate, correction_list
+        return success, correction_list
             
     def train_for_n_epochs(self, training_steps=int, epochs=int, num_of_predictions=100, num_of_steps_prediction=50, target_update=100, 
         optimizer=str, save=True, directory_path='network', prediction_list_p_error=[0.1],
