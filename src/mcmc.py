@@ -7,6 +7,7 @@ from numba import jit, prange
 from .toric_model import Toric_code
 from .util import Action
 import pandas as pd
+from tqdm import tqdm
 
 
 rule_table = np.array(([[0, 1, 2, 3], [1, 0, 3, 2],
@@ -99,6 +100,10 @@ def parallel_tempering_plus(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_bur
     nbr_errors_bottom_chain = np.zeros(steps)
     eq = np.zeros([steps, 16], dtype=np.uint32)  # list of class counts after burn in
 
+
+    # Save statistics
+    qubitlist = []
+
     # used in error_based/majority_based instead of setting tops0 = TOPS
     tops_change = 0
 
@@ -112,7 +117,7 @@ def parallel_tempering_plus(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_bur
     ladder[Nc - 1].p_logical = 0.5  # set probability of application of logical operator in top chain
 
     count = -1
-    for j in range(steps):
+    for j in tqdm(range(steps)):
         # run mcmc for each chain [steps] times
         for i in range(Nc):
             ladder[i].update_chain(iters)
@@ -167,8 +172,10 @@ def parallel_tempering_plus(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_bur
             count=j
             break
 
+        qubitlist.append(ladder[0].toric.qubit_matrix)
+
     distr = (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
-    return distr, count
+    return distr, count, qubitlist
 
 
 # wrapper for parallel_tempering_plus
