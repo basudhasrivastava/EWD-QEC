@@ -19,7 +19,6 @@ def main(file_path, RL_args, prediction_args):
     size = 5
 
     names = ['qubit_matrix', 'drl_correction_chain']
-    tmp_dict = {name: None for name in names}
     data = []
 
     rl = RL(**RL_args)
@@ -27,7 +26,9 @@ def main(file_path, RL_args, prediction_args):
     reader = rl.mcmc_data_reader
 
     for i in tqdm(range(reader.get_capacity())):
+        tmp_dict = {}
         qubit_matrix, eq_distr = reader.next()
+        print(qubit_matrix)
 
         success, correction_list = rl.prediction_mod(**prediction_args, qubit_matrix=qubit_matrix) # Anpassa efter Alexeis kod
         drl_correction_chain = correction_list[-1] # last value in correction_list is complete correction chain
@@ -39,7 +40,7 @@ def main(file_path, RL_args, prediction_args):
             data.append(tmp_dict)
         
     df = pd.DataFrame(data)
-    df.to_pickle('test0.xy')
+    df.to_pickle('drl_failures.xz')
 
 
 # Returns number of degenerate equivalence classes
