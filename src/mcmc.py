@@ -54,6 +54,7 @@ class MCMCDataReader:
         self.__file_path = file_path
         # size is the size of the toric code 
         self.__size = size
+        self.__df = pd.read_pickle(file_path)
         try:
             self.__df = pd.read_pickle(file_path)
             self.__capacity = self.__df.index[-1][0] + 1  # The number of data samples in the dataset
@@ -76,6 +77,9 @@ class MCMCDataReader:
 
     def current_index(self):
         return self.__current_index
+
+    def get_capacity(self):
+        return self.__capacity
 
 # parallel tempering method. returns equivalence class distribution distr 
 # and the number of steps taken when convergegence is reached, count
