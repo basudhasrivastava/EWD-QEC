@@ -15,23 +15,7 @@ from matplotlib import rc
 #rc('font',**{'family':'serif'})#,'serif':['Palatino']})
 #rc('text', usetex=True)
 
-def getMCMCstats(qubit_matrix_in):
-    size = 5
-    init_toric = Toric_code(size)
-    p_error = 0.1
-    Nc = 19
-    steps=100000
-    
-    # define error
-    '''action = Action(position = np.array([1, 1, 0]), action = 3) #([vertical=0,horisontal=1, y-position, x-position]), action = x=1,y=2,z=3,I=0)
-    init_toric.step(action)#1
-    action = Action(position = np.array([1, 2, 0]), action = 3)
-    init_toric.step(action)#2
-    action = Action(position = np.array([1, 4, 0]), action = 1)
-    init_toric.step(action)#2
-    action = Action(position = np.array([1, 0, 0]), action = 1)
-    init_toric.step(action)#2
-    init_toric.qubit_matrix = np.array([[[0, 0, 0, 0, 0, 0, 0],
+'''init_toric.qubit_matrix = np.array([[[0, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0],
                                          [0, 1, 2, 1, 1, 0, 0],
@@ -45,31 +29,26 @@ def getMCMCstats(qubit_matrix_in):
                                          [0, 0, 1, 0, 0, 0, 0],
                                          [0, 3, 0, 0, 0, 0, 0],
                                          [0, 0, 0, 0, 0, 0, 0]]])'''
+
+def getMCMCstats(qubit_matrix_in, size, p_error, Nc=19, steps=1000000, crit='error_based'):
+    """Get statistics about distribution of error chains given a syndrom (error chain) using MCMC-sampling."""
+    init_toric = Toric_code(size)
     
-    # eller använd någon av dessa för att initiera slumpartat
-    #nbr_error = 9
-    #init_toric.generate_n_random_errors(10)
-    #init_toric.generate_random_error(p_error)
+    # define error
     init_toric.qubit_matrix = qubit_matrix_in
     init_toric.syndrom('next_state')
-
 
     # plot initial error configuration
     init_toric.plot_toric_code(init_toric.next_state, 'Chain_init')
     # Start in random eq-class
     init_toric.qubit_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
 
-    distr, count, qubitlist = parallel_tempering_plus(init_toric, Nc, p=p_error, steps=steps, iters=10, conv_criteria='none')
+    distr, count, qubitlist = parallel_tempering_plus(init_toric, Nc, p=p_error, steps=steps, iters=10, conv_criteria=crit)
     print(distr)
     unique_elements, unique_counts = np.unique(qubitlist, axis=0, return_counts=True)
     print('Number of unique elements: ', len(unique_elements))
-    #for i in range(len(unique_elements)):
-    #    print(np.count_nonzero(unique_elements[i] == qubitlist[:]))
-        #unique_counts = np.count_nonzero
-    
-    # ALL qubit solutions are saved in qubitlist
 
-    shortest = 100
+    shortest = inf
     for i in range(len(qubitlist)):
         nb = np.count_nonzero(qubitlist[i])
         if nb < shortest:
@@ -80,19 +59,15 @@ def getMCMCstats(qubit_matrix_in):
     df = pd.concat((pd.DataFrame({"qubit":[unique_elements[i]], "nbr_err":[np.count_nonzero(unique_elements[i])], "nbr_occ":[unique_counts[i]], "eq_class": define_equivalence_class(unique_elements[i])}) for i in range(len(unique_elements))),
             ignore_index=True)
     
-    print(df.loc[df['nbr_err'] == shortest])
-    print(df.loc[df['nbr_err'] == shortest+1])
-    print(df.loc[df['nbr_err'] == shortest+2])
-    print(df.loc[df['nbr_err'] == shortest+3])
-    print(df.loc[df['nbr_err'] == shortest+4])
-    print(df.loc[df['nbr_err'] == shortest+5])
-    df2 = df.loc[df['nbr_err'] == shortest].loc[df['eq_class'] == 15]
-    i = 0
-    for index, row in df2.iterrows():
-        i += 1
-        #print(row['qubit'])#.reshape((2, 5, 5)))
-        init_toric.qubit_matrix = row['qubit']
-        init_toric.plot_toric_code(init_toric.next_state, 'Chain_' + str(i))
+    for i in range(7):
+        print(shortest+i)
+        print(df.loc[df['nbr_err'] == shortest + i])
+        for j in range(16):
+            nbr_comb = len(df.loc[df['nbr_err'] == shortest + i].loc[df['eq_class'] == j])
+            if nbr_comb > 0:
+                print('class ', j, '\t\t', nbr_comb)
+            
+
 
 def arreq_in_list(myarr, list_arrays):
     return next((True for elem in list_arrays if np.array_equal(elem, myarr)), False)
@@ -560,5 +535,22 @@ if __name__ == '__main__':
     #create_MCMC_df_for_figure_7()
     #plot_fig7_1()
     #plot_fig7_2()
-    #getMCMCstats()
-    plot_p()
+    qubit_matrix = np.array([[[0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0],
+                                         [0, 1, 2, 1, 1, 0, 0],
+                                         [0, 0, 3, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0]],
+                                        [[0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 1, 0, 0, 0, 0],
+                                         [0, 0, 1, 0, 0, 0, 0],
+                                         [0, 0, 2, 0, 0, 0, 0],
+                                         [0, 0, 1, 0, 0, 0, 0],
+                                         [0, 3, 0, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0]]])
+    
+    
+    
+    getMCMCstats(qubit_matrix,7, 0.15, steps = 100000)
+    #plot_p()
