@@ -29,7 +29,7 @@ def main(file_path, RL_args, prediction_args):
         tmp_dict = {}
         qubit_matrix, eq_distr = reader.next()
 
-        success, drl_correction_chain = rl.prediction_mod(**prediction_args, qubit_matrix=qubit_matrix) # Anpassa efter Alexeis kod
+        success, drl_correction_chain = rl.prediction_mod(**prediction_args, qubit_matrix=np.copy(qubit_matrix)) # Anpassa efter Alexeis kod
 
         drl_smart = (define_equivalence_class(drl_correction_chain) == np.argmax(eq_distr))
         if success and not drl_smart:
