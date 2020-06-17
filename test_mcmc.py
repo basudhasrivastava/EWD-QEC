@@ -96,6 +96,46 @@ def getMCMCstats():
 def arreq_in_list(myarr, list_arrays):
     return next((True for elem in list_arrays if np.array_equal(elem, myarr)), False)
 
+def plot_p():
+    size = 7
+    init_toric = Toric_code(size)
+    Nc = 19
+    steps=1000000
+    
+    # define error
+    init_toric.qubit_matrix = np.array([[[0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0],
+                                         [0, 1, 2, 1, 1, 0, 0],
+                                         [0, 0, 3, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0]],
+                                        [[0, 0, 0, 0, 0, 0, 0],
+                                         [0, 0, 1, 0, 0, 0, 0],
+                                         [0, 0, 1, 0, 0, 0, 0],
+                                         [0, 0, 2, 0, 0, 0, 0],
+                                         [0, 0, 1, 0, 0, 0, 0],
+                                         [0, 3, 0, 0, 0, 0, 0],
+                                         [0, 0, 0, 0, 0, 0, 0]]])
+    init_toric.syndrom('next_state')
+
+
+    # plot initial error configuration
+    init_toric.plot_toric_code(init_toric.next_state, 'Chain_init')
+    # Start in random eq-class
+    init_toric.qubit_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
+
+    p = (0.01 + 0.03*i for i in range(7))
+   
+    l = []
+    for p_err in p:
+        distr, count, qubitlist = parallel_tempering_plus(init_toric, Nc, p=p_err, steps=steps, iters=10, conv_criteria='error_based')
+        l.append(distr)
+
+    plt.plot(l)
+
+    plt.savefig('plots/testingp.png')
+    
 
 def learn_seaborn():
     data = np.transpose(np.arange(32).reshape((2,16))) + 1
@@ -519,4 +559,5 @@ if __name__ == '__main__':
     #create_MCMC_df_for_figure_7()
     #plot_fig7_1()
     #plot_fig7_2()
-    getMCMCstats()
+    #getMCMCstats()
+    plot_p()
