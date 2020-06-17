@@ -15,15 +15,15 @@ from matplotlib import rc
 #rc('font',**{'family':'serif'})#,'serif':['Palatino']})
 #rc('text', usetex=True)
 
-def getMCMCstats():
-    size = 7
+def getMCMCstats(qubit_matrix_in):
+    size = 5
     init_toric = Toric_code(size)
     p_error = 0.1
     Nc = 19
     steps=100000
     
     # define error
-    action = Action(position = np.array([1, 1, 0]), action = 3) #([vertical=0,horisontal=1, y-position, x-position]), action = x=1,y=2,z=3,I=0)
+    '''action = Action(position = np.array([1, 1, 0]), action = 3) #([vertical=0,horisontal=1, y-position, x-position]), action = x=1,y=2,z=3,I=0)
     init_toric.step(action)#1
     action = Action(position = np.array([1, 2, 0]), action = 3)
     init_toric.step(action)#2
@@ -44,12 +44,13 @@ def getMCMCstats():
                                          [0, 0, 2, 0, 0, 0, 0],
                                          [0, 0, 1, 0, 0, 0, 0],
                                          [0, 3, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0]]])
+                                         [0, 0, 0, 0, 0, 0, 0]]])'''
     
     # eller använd någon av dessa för att initiera slumpartat
     #nbr_error = 9
     #init_toric.generate_n_random_errors(10)
     #init_toric.generate_random_error(p_error)
+    init_toric.qubit_matrix = qubit_matrix_in
     init_toric.syndrom('next_state')
 
 
@@ -58,7 +59,7 @@ def getMCMCstats():
     # Start in random eq-class
     init_toric.qubit_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
 
-    distr, count, qubitlist = parallel_tempering_plus(init_toric, Nc, p=p_error, steps=steps, iters=10, conv_criteria='error_based')
+    distr, count, qubitlist = parallel_tempering_plus(init_toric, Nc, p=p_error, steps=steps, iters=10, conv_criteria='none')
     print(distr)
     unique_elements, unique_counts = np.unique(qubitlist, axis=0, return_counts=True)
     print('Number of unique elements: ', len(unique_elements))
