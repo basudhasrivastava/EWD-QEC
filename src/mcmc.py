@@ -103,6 +103,10 @@ def parallel_tempering_plus(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_bur
     nbr_errors_bottom_chain = np.zeros(steps)
     eq = np.zeros([steps, 16], dtype=np.uint32)  # list of class counts after burn in
 
+
+    # Save statistics
+    qubitlist = []
+
     # used in error_based/majority_based instead of setting tops0 = TOPS
     tops_change = 0
 
@@ -171,8 +175,10 @@ def parallel_tempering_plus(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_bur
             count=j
             break
 
+        qubitlist.append(ladder[0].toric.qubit_matrix)
+
     distr = (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
-    return distr, count
+    return distr, count, qubitlist
 
 
 # wrapper for parallel_tempering_plus
