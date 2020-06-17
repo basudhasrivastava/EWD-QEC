@@ -29,15 +29,12 @@ def single_temp(init_toric, p, max_iters, eps, burnin = 625, conv_criteria = 'er
         eq_array_translate[i] = define_equivalence_class(ladder[i].toric.qubit_matrix)
     print(eq_array_translate)
     for i in range(nbr_eq_class):
-        since_burn = 0
         for j in range(max_iters):
             ladder[i].update_chain(1)
-            
+            nbr_errors_chain[i ,j] = np.count_nonzero(ladder[i].toric.qubit_matrix)
             if not convergence_reached[i] and j >= burnin:
-                nbr_errors_chain[i ,j-burnin] = np.count_nonzero(ladder[i].toric.qubit_matrix)
-                since_burn+=1
                 if conv_criteria == 'error_based':
-                    convergence_reached[i] = conv_crit_error_based(nbr_errors_chain[i, :j], since_burn, eps)
+                    convergence_reached[i] = conv_crit_error_based(nbr_errors_chain[i, :j], j, eps)
                     if convergence_reached[i] == 1: 
                         mean_array[i] = np.average(nbr_errors_chain[i ,:j])
                         print(j, 'convergence iterations')
@@ -56,9 +53,8 @@ def apply_logical_operator(qubit_matrix, number):
         
         return qubit_matrix
 
-def conv_crit_error_based(nbr_errors_chain, since_burn, eps):  # Konvergenskriterium 1 i papper
+def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i papper
     # last nonzero element of nbr_errors_bottom_chain is since_burn. Length of nonzero part is since_burn + 1
-    l = since_burn + 1
     # Calculate average number of errors in 2nd and 4th quarter
     Average_Q2 = np.average(nbr_errors_chain[(l // 4): (l // 2)])
     Average_Q4 = np.average(nbr_errors_chain[(3 * l // 4): l])
@@ -74,11 +70,11 @@ def conv_crit_error_based(nbr_errors_chain, since_burn, eps):  # Konvergenskrite
    
 if __name__ == '__main__':
     init_toric = Toric_code(5)
-    p_error = 0.15
+    p_error = 0.1
     init_toric.generate_random_error(p_error)
-    mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 100000, eps = 0.000001, burnin = 10, conv_criteria = 'error_based') 
+    mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 10000, conv_criteria = 'error_based') 
     print(eq_array_translate[np.argmin(mean_array)], 'guess')
-    print(mean_array, convergence_reached)     
+    print(convergence_reached)     
     
     
     
