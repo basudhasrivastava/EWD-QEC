@@ -8,7 +8,7 @@ import os
 
 from numba import jit, prange
 from src.toric_model import Toric_code
-from src.util import Action
+from src.util import *
 from NN import NN_11, NN_17, NN_11_mod
 from tqdm import tqdm
 from src.mcmc import *
@@ -40,17 +40,6 @@ def main(file_path, RL_args, prediction_args):
     df = pd.DataFrame(data)
     p_str = file_path[file_path.find('p_0'):file_path.find('.xz')]
     df.to_pickle('drl_failures_{}.xz'.format(p_str))
-
-
-# Returns number of degenerate equivalence classes
-def count_degenerate(eq_distr, rel_tol=0.1):
-    sorted_distr = np.sort(eq_distr)[::-1]
-
-    i = 0
-    while sorted_distr[i+1] > sorted_distr[i] * (1 - rel_tol):
-        i += 1
-    
-    return i + 1
 
 
 if __name__ == '__main__':
