@@ -1,4 +1,5 @@
-data/
+data/*
+!data/drl_failures*
 plots/
 .vscode
 *__pycache__

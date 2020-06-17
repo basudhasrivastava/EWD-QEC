@@ -72,7 +72,7 @@ if __name__ == '__main__':
     init_toric = Toric_code(5)
     p_error = 0.1
     init_toric.generate_random_error(p_error)
-    mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 10000, conv_criteria = 'error_based') 
+    mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 100000, conv_criteria = 'error_based') 
     print(eq_array_translate[np.argmin(mean_array)], 'guess')
     print(convergence_reached)     
     
