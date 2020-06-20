@@ -37,33 +37,17 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps):
         print(len(qubitlist[i]))
 
     #######--------Determine EQC--------########
-    dfs = []
-    # this takes time
-    for i in range(nbr_eq_class):
-        unique_elements = np.unique(qubitlist[i], axis=0)
-        print('Number of unique elements in eq ' + str(i)+': ', len(unique_elements))
-        eq = define_equivalence_class(unique_elements[0])
-        dfs.append(pd.concat((pd.DataFrame({"qubit":[unique_elements[j]], "nbr_err":[np.count_nonzero(unique_elements[j])], "eq_class": eq}) for j in range(len(unique_elements))),
-            ignore_index=True))
-    df = pd.DataFrame()
-    df = df.append(dfs, ignore_index=True)
-    
-    
-    shortest = 1000
-    for j in range(16):
-        for i in range(len(qubitlist[j])):
-            nb = np.count_nonzero(qubitlist[j][i])
-            if nb < shortest:
-                shortest = nb
-    
 
     eqdistr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
     beta = -log(p/3/(1-p))
-    for n in range(shortest,shortest+3):
-        for eq in range(16):
-            # this takes time
-            nbr_comb = len(df.loc[df['nbr_err'] == n].loc[df['eq_class'] == eq])
-            eqdistr[eq] += nbr_comb*exp(-beta*n)
+
+    for i in range(nbr_eq_class):
+        unique_elements = np.unique(qubitlist[i], axis=0)
+        eq = define_equivalence_class(unique_elements[0])
+        print('Number of unique elements in eq ' + str(eq)+': ', len(unique_elements))
+        for j in range(len(unique_elements)):
+            eqdistr[eq] += exp(-beta*np.count_nonzero(unique_elements[j]))
+        
     return [int(x * 100 / sum(eqdistr)) for x in eqdistr]
             
 def apply_logical_operator(qubit_matrix, number):
@@ -84,5 +68,5 @@ if __name__ == '__main__':
     init_toric.generate_random_error(p_error)
     print(single_temp_direct_sum(init_toric.qubit_matrix, 5, p = p_error, steps = 10000))
     print(init_toric.qubit_matrix)
-    distr, count, qubitlist = parallel_tempering_plus(init_toric, 19, p=p_error, steps=10000, iters=10, conv_criteria='error_based')
+    distr, count, qubitlist = parallel_tempering_plus(init_toric, 19, p=p_error, steps=1000000, iters=10, conv_criteria='error_based')
     print(distr)
