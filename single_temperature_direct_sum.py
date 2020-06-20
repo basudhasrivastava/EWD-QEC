@@ -23,7 +23,7 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps):
     ladder = [] # list of chain objects
 
     # save N_E(n) på något sätt?
-    qubitlist = [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]]
+    qubitlist = set() # make these into sets!
 
     for i in range(nbr_eq_class):
         ladder.append(Chain(init_toric.system_size, p))
@@ -33,20 +33,20 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps):
     for i in range(nbr_eq_class):
         for _ in range(steps):
             ladder[i].update_chain(1)
-            qubitlist[i].append(ladder[i].toric.qubit_matrix)
-        print(len(qubitlist[i]))
+            eq = define_equivalence_class(ladder[i].toric.qubit_matrix)
+            x_hashable = map(tuple, ladder[i].toric.qubit_matrix)
+            qubitlist.add(x_hashable)
+        print(len(qubitlist))
 
     #######--------Determine EQC--------########
 
     eqdistr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
     beta = -log(p/3/(1-p))
 
-    for i in range(nbr_eq_class):
-        unique_elements = np.unique(qubitlist[i], axis=0)
-        eq = define_equivalence_class(unique_elements[0])
-        print('Number of unique elements in eq ' + str(eq)+': ', len(unique_elements))
-        for j in range(len(unique_elements)):
-            eqdistr[eq] += exp(-beta*np.count_nonzero(unique_elements[j]))
+    for val in qubitlist:
+        qubit_matrix = np.array(list(val))
+        eq = define_equivalence_class(qubit_matrix)
+        eqdistr[eq] += exp(-beta*np.count_nonzero(qubit_matrix))
         
     return [int(x * 100 / sum(eqdistr)) for x in eqdistr]
             
@@ -68,5 +68,5 @@ if __name__ == '__main__':
     init_toric.generate_random_error(p_error)
     print(single_temp_direct_sum(init_toric.qubit_matrix, 5, p = p_error, steps = 10000))
     print(init_toric.qubit_matrix)
-    distr, count, qubitlist = parallel_tempering_plus(init_toric, 19, p=p_error, steps=1000000, iters=10, conv_criteria='error_based')
-    print(distr)
+    #distr, count, qubitlist = parallel_tempering_plus(init_toric, 19, p=p_error, steps=1000000, iters=10, conv_criteria='error_based')
+    #print(distr)
