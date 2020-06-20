@@ -1,5 +1,5 @@
 import numpy as np
-import copy
+from copy import deepcopy
 
 from src.toric_model import Toric_code
 from src.mcmc import Chain, define_equivalence_class, apply_logical
@@ -17,22 +17,18 @@ from tqdm import tqdm
 def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
     init_toric = Toric_code(size)
     init_toric.qubit_matrix = qubit_matrix
-    ladder = []  # list of chain objects
+    chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
 
     qubitlist = []
 
-    for i in range(16):
-        ladder.append(Chain(init_toric.system_size, p))  # this p needs not be the same as p, as it is used to determine how we sample N(n)
-        ladder[i].toric = copy.deepcopy(init_toric)  # give all the same initial state
-        ladder[i].toric.qubit_matrix = apply_logical_operator(ladder[i].toric.qubit_matrix, i)  # apply different logical operator to each chain
+    for i in tqdm(range(16)):
+        chain.toric.qubit_matrix = apply_logical_operator(qubit_matrix, i)  # apply different logical operator to each chain
         # here we start in a high entropy state for most eqs, which is not desired as it increases time to find smaller solutions.
-    for i in tqdm(range(16)):
         for _ in range(int(steps*0.1)):
-            ladder[i].update_chain(5)
-    for i in tqdm(range(16)):
+            chain.update_chain(5)
         for _ in range(int(steps*0.9)):
-            ladder[i].update_chain(5)
-            qubitlist.append(ladder[i].toric.qubit_matrix)
+            chain.update_chain(5)
+            qubitlist.append(chain.toric.qubit_matrix)
 
     # Only consider unique elements
     print('Finding unique elements...')
@@ -52,7 +48,6 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
 def apply_logical_operator(qubit_matrix, number):
     binary = "{0:4b}".format(number)
     for i in range(16):
-
         if binary[0] == '1':
             qubit_matrix, _ = apply_logical(qubit_matrix, operator=1, layer=0, X_pos=0, Z_pos=0)
         if binary[1] == '1':
