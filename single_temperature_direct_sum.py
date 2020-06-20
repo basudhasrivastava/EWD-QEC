@@ -23,7 +23,7 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps):
     ladder = [] # list of chain objects
 
     # save N_E(n) på något sätt?
-    qubitlist = set() # make these into sets!
+    qubitlist = [] # make these into sets!
 
     for i in range(nbr_eq_class):
         ladder.append(Chain(init_toric.system_size, p))
@@ -33,11 +33,9 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps):
     for i in range(nbr_eq_class):
         for _ in range(steps):
             ladder[i].update_chain(1)
-            eq = define_equivalence_class(ladder[i].toric.qubit_matrix)
-            x_hashable = map(tuple, ladder[i].toric.qubit_matrix)
-            qubitlist.add(x_hashable)
+            qubitlist.append(ladder[i].toric.qubit_matrix)
         print(len(qubitlist))
-
+    qubitlist = np.unique(qubitlist, axis = 0)
     #######--------Determine EQC--------########
 
     eqdistr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
@@ -66,7 +64,7 @@ if __name__ == '__main__':
     init_toric = Toric_code(5)
     p_error = 0.15
     init_toric.generate_random_error(p_error)
-    print(single_temp_direct_sum(init_toric.qubit_matrix, 5, p = p_error, steps = 10000))
+    print(single_temp_direct_sum(init_toric.qubit_matrix, 5, p = p_error, steps = 100000))
     print(init_toric.qubit_matrix)
     #distr, count, qubitlist = parallel_tempering_plus(init_toric, 19, p=p_error, steps=1000000, iters=10, conv_criteria='error_based')
     #print(distr)
