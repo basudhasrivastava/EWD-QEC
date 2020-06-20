@@ -11,12 +11,15 @@ from src.mcmc import *
 from src.mcmc import Chain
 import pandas as pd
 from math import *
+from tqdm import tqdm
 
 # add eq-crit that runs until a certain number of classes are found or not?
 # separate eq-classes? qubitlist for diffrent eqs
+# vill göra detta men med mwpm? verkar finnas sätt att hitta "alla" kortaste, frågan är om man även kan hitta alla längre också
+# https://stackoverflow.com/questions/58605904/finding-all-paths-in-weighted-graph-from-node-a-to-b-with-weight-of-k-or-lower
 
 #@profile
-def single_temp_direct_sum(qubit_matrix, size, p, steps):
+def single_temp_direct_sum(qubit_matrix, size, p, steps=100000):
     init_toric = Toric_code(size)
     init_toric.qubit_matrix = qubit_matrix
     nbr_eq_class = 16
@@ -30,21 +33,25 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps):
         ladder[i].toric = copy.deepcopy(init_toric)  # give all the same initial state
         ladder[i].toric.qubit_matrix = apply_logical_operator(ladder[i].toric.qubit_matrix, i) # apply different logical operator to each chain
             # here we start in a high entropy state for most eqs, which is not desired as it increases time to find smaller solutions.
-    for i in range(nbr_eq_class):
-        for _ in range(steps):
-            ladder[i].update_chain(1)
+    for i in tqdm(range(nbr_eq_class)):
+        for _ in range(int(steps*0.1)):
+            ladder[i].update_chain(5)
+    for i in tqdm(range(nbr_eq_class)):
+        for _ in range(int(steps*0.9)):
+            ladder[i].update_chain(5)
             qubitlist.append(ladder[i].toric.qubit_matrix)
-        print(len(qubitlist))
+    
+    # Only consider unique elements
+    print('Finding unique elements...')
     qubitlist = np.unique(qubitlist, axis = 0)
-    #######--------Determine EQC--------########
 
-    eqdistr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    #######--------Determine EC-Distrubution--------########
+    eqdistr = np.zeros(16)
     beta = -log(p/3/(1-p))
 
-    for val in qubitlist:
-        qubit_matrix = np.array(list(val))
-        eq = define_equivalence_class(qubit_matrix)
-        eqdistr[eq] += exp(-beta*np.count_nonzero(qubit_matrix))
+    for i in range(len(qubitlist)):
+        eq = define_equivalence_class(qubitlist[i])
+        eqdistr[eq] += exp(-beta*np.count_nonzero(qubitlist[i]))
         
     return [int(x * 100 / sum(eqdistr)) for x in eqdistr]
             
@@ -64,7 +71,7 @@ if __name__ == '__main__':
     init_toric = Toric_code(5)
     p_error = 0.15
     init_toric.generate_random_error(p_error)
-    print(single_temp_direct_sum(init_toric.qubit_matrix, 5, p = p_error, steps = 100000))
+    print(single_temp_direct_sum(init_toric.qubit_matrix, 5, p = p_error, steps = 20000))
     print(init_toric.qubit_matrix)
     #distr, count, qubitlist = parallel_tempering_plus(init_toric, 19, p=p_error, steps=1000000, iters=10, conv_criteria='error_based')
     #print(distr)
