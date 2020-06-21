@@ -5,7 +5,6 @@ from src.toric_model import Toric_code
 from src.mcmc import Chain, define_equivalence_class, apply_logical
 
 from math import log, exp
-from tqdm import tqdm
 
 # add eq-crit that runs until a certain number of classes are found or not?
 # separate eq-classes? qubitlist for diffrent eqs
@@ -21,7 +20,7 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
 
     qubitlist = []
 
-    for i in tqdm(range(16)):
+    for i in range(16):
         chain.toric.qubit_matrix = apply_logical_operator(qubit_matrix, i)  # apply different logical operator to each chain
         # here we start in a high entropy state for most eqs, which is not desired as it increases time to find smaller solutions.
         for _ in range(int(steps*0.1)):
@@ -31,7 +30,6 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
             qubitlist.append(chain.toric.qubit_matrix)
 
     # Only consider unique elements
-    print('Finding unique elements...')
     qubitlist = np.unique(qubitlist, axis=0)
 
     # --------Determine EC-Distrubution--------
