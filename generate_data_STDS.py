@@ -52,10 +52,13 @@ def generate(file_path, params, timeout,
         # Initiate toric
         init_toric = Toric_code(params['size'])
         init_toric.generate_random_error(params['p'])
-        init_toric.qubit_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
+
+        #randomize input matrix, no trace of seed.
+        input_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
+        input_matrix = apply_stabilizers_uniform(input_matrix)
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
-        df_eq_distr = single_temp_direct_sum(init_toric.qubit_matrix,params['size'],params['p'])
+        df_eq_distr = single_temp_direct_sum(input_matrix,params['size'],params['p'])
         df_eq_distr = np.array(df_eq_distr)
 
         # Flatten initial qubit matrix to store in dataframe
@@ -104,7 +107,7 @@ if __name__ == '__main__':
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
     params = {'size': 5,
-              'p': 0.21
+              'p': 0.15
               }
 
     # Get job array id, set working directory, set timer
@@ -119,7 +122,7 @@ if __name__ == '__main__':
         print('invalid sysargs')
 
     # Build file path
-    file_path = os.path.join(local_dir, 'dataSTDC_p_'+str(params['p'])+'_.xz')
+    file_path = os.path.join(local_dir, 'dataSTDS_5x5_p_'+str(params['p'])+'.xz')
 
     # Generate data
     generate(file_path, params, timeout,max_capacity=10000,nbr_datapoints=10000)

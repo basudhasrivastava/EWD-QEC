@@ -6,6 +6,7 @@ from src.mcmc import Chain, define_equivalence_class, apply_logical
 
 from math import log, exp
 
+
 # add eq-crit that runs until a certain number of classes are found or not?
 # separate eq-classes? qubitlist for diffrent eqs
 # vill göra detta men med mwpm? verkar finnas sätt att hitta "alla" kortaste, frågan är om man även kan hitta alla längre också
@@ -22,7 +23,7 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
 
     for i in range(16):
         chain.toric.qubit_matrix = apply_logical_operator(qubit_matrix, i)  # apply different logical operator to each chain
-        # here we start in a high entropy state for most eqs, which is not desired as it increases time to find smaller solutions.
+        # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
         for _ in range(int(steps*0.1)):
             chain.update_chain(5)
         for _ in range(int(steps*0.9)):
@@ -40,7 +41,7 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
         eq = define_equivalence_class(qubitlist[i])
         eqdistr[eq] += exp(-beta*np.count_nonzero(qubitlist[i]))
 
-    return [int(x * 100 / sum(eqdistr)) for x in eqdistr]
+    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
 
 def apply_logical_operator(qubit_matrix, number):
@@ -62,5 +63,5 @@ if __name__ == '__main__':
     init_toric = Toric_code(5)
     p_error = 0.15
     init_toric.generate_random_error(p_error)
-    print(single_temp_direct_sum(init_toric.qubit_matrix, size=5, p=p_error, steps=20000))
     print(init_toric.qubit_matrix)
+    print(single_temp_direct_sum(init_toric.qubit_matrix, size=5, p=p_error, steps=20000))
