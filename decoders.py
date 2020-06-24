@@ -71,6 +71,25 @@ def apply_logical_operator(qubit_matrix, number):
         return qubit_matrix
 
 
+def single_temp_mcmc(qubit_matrix, size, p, steps=20000):
+    chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
+
+    samples = int(0.9 * steps)
+    qubit_list = np.zeros((16, samples, 2, size, size))
+
+    init_eq = define_equivalence_class(qubt_matrix)
+    ordered_ops = eq_to_ordered_ops(init_eq)
+
+    for i in range(16):
+        chain.toric.qubit_matrix
+        # Apply logical operators to get qubit_matrix into equivalence class i
+        for layer in range(2):
+            chain.toric.qubit_matrix = apply_logical(chain.toric.qubit_matrix, ordered_ops[i][layer], layer)
+
+        for _ in range(int(steps*0.1)):
+            chain.update_chain(5)
+        for _ in range(int(steps*0.9)):
+            chain.update_chain(5)
 # add eq-crit that runs until a certain number of classes are found or not?
 # separate eq-classes? qubitlist for diffrent eqs
 # vill göra detta men med mwpm? verkar finnas sätt att hitta "alla" kortaste, frågan är om man även kan hitta alla längre också
@@ -79,8 +98,6 @@ def apply_logical_operator(qubit_matrix, number):
 
 
 def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
-    init_toric = Toric_code(size)
-    init_toric.qubit_matrix = qubit_matrix
     chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
 
     qubitlist = []
