@@ -25,7 +25,7 @@ class Chain:
         self.flag = 0
         self.factor = ((self.p / 3.0) / (1.0 - self.p))  # rename me
     # runs iters number of steps of the metroplois-hastings algorithm
-    @profile
+    
     def update_chain(self, iters):
         if self.p_logical != 0:
             for _ in range(iters):
