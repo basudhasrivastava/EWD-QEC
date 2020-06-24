@@ -79,8 +79,6 @@ def apply_logical_operator(qubit_matrix, number):
 
 
 def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
-    init_toric = Toric_code(size)
-    init_toric.qubit_matrix = qubit_matrix
     chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
 
     qubitlist = []
