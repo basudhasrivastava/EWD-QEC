@@ -127,11 +127,16 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
 
-def single_temp_relative_count(qubit_matrix, size, p, steps=20000):
-    qubit_list = single_temp_mcmc(qubit_matrix, size, p, steps)
+def single_temp_relative_count(qubit_matrix, size, p_error, p_sampling=None, steps=20000):
+    p_sampling = p_sampling or p_error
+    qubit_list = single_temp_mcmc(qubit_matrix, size, p_sampling, steps)
     
-    beta = -log((p / 3) / (1 - p))
+    beta_error = -log((p_error / 3) / (1 - p_error))
+    beta_sampling = -log((p_sampling / 3) / (1 - p_sampling))
+    d_beta = beta_sampling - beta_error
+    
     Z_arr = np.zeros(16)
+    max_length = 2 * size ** 2
 
     for eq in range(16):
         # Get array of unique error chains and their occurences
@@ -139,8 +144,9 @@ def single_temp_relative_count(qubit_matrix, size, p, steps=20000):
         # Keep track of the unique chains in each class
 
         # Keep track of the shortest and next shortest chain lengths
-        shortest = 2 * size ** 2
-        next_shortest = shortest
+        shortest = max_length
+        next_shortest = max_length
+
         # Dict to hold the total occurences and unique chains of each observed length
         Nm_n = {}
 
@@ -152,7 +158,7 @@ def single_temp_relative_count(qubit_matrix, size, p, steps=20000):
             if length < shortest:
                 next_shortest = shortest
                 shortest = length
-            elif length < next_shortest:
+            elif length < next_shortest and length > shortest:
                 next_shortest = length
 
             # Update the occurences of chain lengths
@@ -161,13 +167,18 @@ def single_temp_relative_count(qubit_matrix, size, p, steps=20000):
             else:
                 Nm_n[length] = np.array([1, unique_counts[i]])
 
+        if next_shortest == max_length:
+            next_shortest = shortest
+
         shortest_counts = Nm_n[shortest]
         shortest_fraction = shortest_counts[0] / shortest_counts[1]
         next_shortest_counts = Nm_n[next_shortest]
         next_shortest_fraction = next_shortest_counts[0] / next_shortest_counts[1]
-        mean_fraction = 0.5 * (shortest_fraction + next_shortest_fraction * exp(-beta * (next_shortest - shortest))) * exp(-beta * shortest)
+        mean_fraction = 0.5 * (shortest_fraction + next_shortest_fraction * exp(-beta_sampling * (next_shortest - shortest)))
+        #mean_fraction = next_shortest_fraction * exp(-beta_sampling * (next_shortest - shortest))
+        #mean_fraction = shortest_fraction
 
-        Z_e = sum(Nm_n.values())[1] * mean_fraction
+        Z_e = sum([m[1] * exp(-beta_sampling * shortest + d_beta * l) for l, m in Nm_n.items()]) * mean_fraction
 
         Z_arr[eq] = Z_e
 
@@ -183,13 +194,30 @@ if __name__ == '__main__':
     print(eq_array_translate[np.argmin(mean_array)], 'guess')
     print(convergence_reached)
     '''
-    size = 5
-    reader = MCMCDataReader('data/data_5x5_p_0.15.xz', size)
+    size = 7
+    steps = 10000 * int(1 + (size / 5) ** 4)
+    #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
     p_error = 0.15
+    p_sampling = 0.20
+    init_toric = Toric_code(size)
+    tries = 2
+    distrs = np.zeros((tries, 16), dtype=int)
+    mean_tvd = 0.0
     for i in range(10):
-        init_qubit, mcmc_distr = reader.next()
-        print(init_qubit)
-        print('MCMC distribution:', mcmc_distr)
-        distr = single_temp_relative_count(init_qubit, size=5, p=p_error, steps=20000)
-        print('STRC distribution:', distr)
+        init_toric.generate_random_error(p_error)
+        init_qubit = np.copy(init_toric.qubit_matrix)
+        #init_qubit, mcmc_distr = reader.next()
+        #print(init_qubit)
+        print('################ Chain', i+1 , '###################')
+        for i in range(tries):
+            distrs[i] = single_temp_relative_count(init_qubit, size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
+            print('Try', i+1, ':', distrs[i])
+        
+        tvd = sum(abs(distrs[1]-distrs[0]))
+        mean_tvd += tvd
+        print('TVD:', tvd)
+    print('Mean TVD:', mean_tvd / 10)
+        
+        #print('STRC distribution 1:', distr1)
+        #print('STRC distribution 2:', distr2)
     
