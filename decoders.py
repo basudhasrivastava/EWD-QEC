@@ -6,9 +6,8 @@ import collections
 
 from numba import jit, prange
 from src.toric_model import Toric_code
-from src.util import Action
+from src.util import *
 from src.mcmc import *
-from src.mcmc import Chain
 import pandas as pd
 
 from math import log, exp
@@ -77,19 +76,22 @@ def single_temp_mcmc(qubit_matrix, size, p, steps=20000):
     samples = int(0.9 * steps)
     qubit_list = np.zeros((16, samples, 2, size, size))
 
-    init_eq = define_equivalence_class(qubt_matrix)
+    init_eq = define_equivalence_class(qubit_matrix)
     ordered_ops = eq_to_ordered_ops(init_eq)
 
-    for i in range(16):
-        chain.toric.qubit_matrix
+    for eq in range(16):
+        chain.toric.qubit_matrix = qubit_matrix
         # Apply logical operators to get qubit_matrix into equivalence class i
         for layer in range(2):
-            chain.toric.qubit_matrix = apply_logical(chain.toric.qubit_matrix, ordered_ops[i][layer], layer)
+            chain.toric.qubit_matrix, _ = apply_logical(chain.toric.qubit_matrix, ordered_ops[eq][layer], layer)
 
-        for _ in range(int(steps*0.1)):
+        for _ in range(steps - samples):
             chain.update_chain(5)
-        for _ in range(int(steps*0.9)):
+        for step in range(samples):
             chain.update_chain(5)
+            qubit_list[eq][step] = chain.toric.qubit_matrix
+
+    return qubit_list
 # add eq-crit that runs until a certain number of classes are found or not?
 # separate eq-classes? qubitlist for diffrent eqs
 # vill göra detta men med mwpm? verkar finnas sätt att hitta "alla" kortaste, frågan är om man även kan hitta alla längre också
@@ -123,23 +125,71 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
         eqdistr[eq] += exp(-beta*np.count_nonzero(qubitlist[i]))
 
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
+
+
+def single_temp_relative_count(qubit_matrix, size, p, steps=20000):
+    qubit_list = single_temp_mcmc(qubit_matrix, size, p, steps)
     
-   
+    beta = -log((p / 3) / (1 - p))
+    Z_arr = np.zeros(16)
+
+    for eq in range(16):
+        # Get array of unique error chains and their occurences
+        unique_chains, unique_counts = np.unique(qubit_list[eq], return_counts=True, axis=0)
+        # Keep track of the unique chains in each class
+
+        # Keep track of the shortest and next shortest chain lengths
+        shortest = 2 * size ** 2
+        next_shortest = shortest
+        # Dict to hold the total occurences and unique chains of each observed length
+        Nm_n = {}
+
+        # Iterate through the unique chains
+        for i, chain in enumerate(unique_chains):
+            # Get the current chain length, store it
+            length = np.count_nonzero(chain)
+            # Update shortest and next shortest lengths
+            if length < shortest:
+                next_shortest = shortest
+                shortest = length
+            elif length < next_shortest:
+                next_shortest = length
+
+            # Update the occurences of chain lengths
+            if length in Nm_n:
+                Nm_n[length] += np.array([1, unique_counts[i]])
+            else:
+                Nm_n[length] = np.array([1, unique_counts[i]])
+
+        shortest_counts = Nm_n[shortest]
+        shortest_fraction = shortest_counts[0] / shortest_counts[1]
+        next_shortest_counts = Nm_n[next_shortest]
+        next_shortest_fraction = next_shortest_counts[0] / next_shortest_counts[1]
+        mean_fraction = 0.5 * (shortest_fraction + next_shortest_fraction * exp(-beta * (next_shortest - shortest))) * exp(-beta * shortest)
+
+        Z_e = sum(Nm_n.values())[1] * mean_fraction
+
+        Z_arr[eq] = Z_e
+
+    return (Z_arr / np.sum(Z_arr) * 100).astype(dtype=int)
+
+
 if __name__ == '__main__':
+    '''
     init_toric = Toric_code(5)
     p_error = 0.1
     init_toric.generate_random_error(p_error)
     mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 100000, conv_criteria = 'error_based') 
     print(eq_array_translate[np.argmin(mean_array)], 'guess')
     print(convergence_reached)
-    '''init_toric = Toric_code(5)
+    '''
+    size = 5
+    reader = MCMCDataReader('data/data_5x5_p_0.15.xz', size)
     p_error = 0.15
-    init_toric.generate_random_error(p_error)
-    print(init_toric.qubit_matrix)
-    print(single_temp_direct_sum(init_toric.qubit_matrix, size=5, p=p_error, steps=20000))'''
-    
-    
-    
-    
-    
+    for i in range(10):
+        init_qubit, mcmc_distr = reader.next()
+        print(init_qubit)
+        print('MCMC distribution:', mcmc_distr)
+        distr = single_temp_relative_count(init_qubit, size=5, p=p_error, steps=20000)
+        print('STRC distribution:', distr)
     
