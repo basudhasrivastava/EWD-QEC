@@ -129,20 +129,22 @@ if __name__ == '__main__':
         'p_error': p_error, 'replay_memory_capacity': 1e4, 'DATA_FILE_PATH': file_path}
     main(file_path, RL_args, prediction_args)'''
 
-    size = 5
+    size = 15
     init_toric = Toric_code(size)
     p_error = 0.20
     init_toric.generate_random_error(p_error)
     init_toric.qubit_matrix = apply_stabilizers_uniform(init_toric.qubit_matrix)
     print(init_toric.qubit_matrix)
-    for i in range(5):
-        steps = 2000 * int((size/5)**4)
+    for i in range(2):
+        steps = 20000 * int((size/5)**4)
         print(i+1, 'steps=', steps)
         eq = raining_chains(init_toric.qubit_matrix, size, p_error, steps_in=steps)
         print(eq)
+    ##means, a, b, = single_temp(init_toric,p_error,100000, 1e-5, burnin=10000)
+    #print(means, a, b)
     eq, _, _ = parallel_tempering(init_toric, 19,
-                                         p=p_error, steps=1000000,
+                                         p=p_error, steps=10000000,
                                          iters=10,
-                                         conv_criteria='error_based')
+                                         conv_criteria='none')
     print(eq)
     #getSTDCstats(init_toric.qubit_matrix, 5, p_error, steps=160000)

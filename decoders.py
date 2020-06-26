@@ -12,6 +12,8 @@ from src.mcmc import Chain
 import pandas as pd
 from multiprocessing import Pool
 from math import log, exp
+from tqdm import tqdm
+import gc
 
 def single_temp(init_toric, p, max_iters, eps, burnin = 625, conv_criteria = 'error_based'):
     nbr_eq_class = 16
@@ -155,25 +157,25 @@ def raining_chains(qubit_matrix, size_in, p, steps_in=20000):
     p_error = p
     global steps
 
-    raindrops = 64
+    raindrops = 10 # must be a multiple of 10
 
     steps = steps_in
-    qubitlist = [{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]
-
-    for i in range(16):
-        with Pool(raindrops) as pool:
-            output = pool.map(fun, np.full(raindrops,i).tolist())
-            for j in range(raindrops):
-                qubitlist[starting_eq ^ i].update(output[j])
-
-    time.sleep(10)
-    # --------Determine EC-Distrubution--------
     eqdistr = np.zeros(16)
     beta = -log((p / 3) / (1-p))
 
-    for i in range(16):
-        for key in qubitlist[i]:
-            eqdistr[i] += exp(-beta*qubitlist[i][key])
+    for i in tqdm(range(16)):
+        eq = starting_eq ^ i
+        qubitlist = {}
+        for _ in range(int(raindrops / 10)):
+            with Pool(10) as pool:
+                output = pool.map(fun, np.full(raindrops,i).tolist())
+                for j in range(raindrops):
+                    qubitlist.update(output[j])
+        for key in qubitlist:
+            eqdistr[eq] += exp(-beta*qubitlist[key])
+        qubitlist.clear()
+        output.clear()
+        gc.collect()
 
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
     
