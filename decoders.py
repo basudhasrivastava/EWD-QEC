@@ -63,28 +63,15 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
 
 def apply_logical_operator(qubit_matrix, number):
     binary = "{0:4b}".format(number)
-    for i in range(16):
-        
-        if binary[0] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=1, layer=0, X_pos=0, Z_pos=0)
-        if binary[1] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=3, layer=0, X_pos=0, Z_pos=0)
-        if binary[2] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=1, layer=1, X_pos=0, Z_pos=0)
-        if binary[3] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=3, layer=1, X_pos=0, Z_pos=0)
-        
-        return qubit_matrix
+ 
+    if binary[0] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=3, layer=1, X_pos=0, Z_pos=0)
+    if binary[1] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=1, layer=1, X_pos=0, Z_pos=0)
+    if binary[2] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=3, layer=0, X_pos=0, Z_pos=0)
+    if binary[3] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=1, layer=0, X_pos=0, Z_pos=0)
+    
+    return qubit_matrix
 
-
-# add eq-crit that runs until a certain number of classes are found or not?
-# separate eq-classes? qubitlist for diffrent eqs
-# vill göra detta men med mwpm? verkar finnas sätt att hitta "alla" kortaste, frågan är om man även kan hitta alla längre också
-# https://stackoverflow.com/questions/58605904/finding-all-paths-in-weighted-graph-from-node-a-to-b-with-weight-of-k-or-lower
-# i nuläget kommer "bra eq" att bli straffade eftersom att de inte kommer få chans att generera lika många unika kedjor --bör man sätta något tak? eller bara ta med de kortaste inom varje?
-
-global matrix
-global size
-global p_error
-global steps
-
-def f(i):
+'''def f(i):
     global matrix
     global size
     global p_error
@@ -126,38 +113,34 @@ def single_temp_direct_sum(qubit_matrix, size_in, p, steps_in=20000):
         for key in qubitlist[i]:
             eqdistr[i] += exp(-beta*qubitlist[i][key])
 
-    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
+    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)'''
 
-def fun(i):
-    global matrix
-    global size
-    global p_error
-    global steps
+# add eq-crit that runs until a certain number of classes are found or not?
+# separate eq-classes? qubitlist for diffrent eqs
+# vill göra detta men med mwpm? verkar finnas sätt att hitta "alla" kortaste, frågan är om man även kan hitta alla längre också
+# https://stackoverflow.com/questions/58605904/finding-all-paths-in-weighted-graph-from-node-a-to-b-with-weight-of-k-or-lower
+# i nuläget kommer "bra eq" att bli straffade eftersom att de inte kommer få chans att generera lika många unika kedjor --bör man sätta något tak? eller bara ta med de kortaste inom varje?
+
+
+def fun(input_data_tuple):
+    i, size, p_error, matrix, steps, begin_sample = input_data_tuple
     dictn = {}
     chain = Chain(size, p_error)
     chain.toric.qubit_matrix = apply_logical_operator(matrix, i)  # apply different logical operator to each chain
     chain.toric.qubit_matrix = apply_stabilizers_uniform(chain.toric.qubit_matrix)
     # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
     current_class = define_equivalence_class(chain.toric.qubit_matrix)
-    for _ in range(int(steps*0.5)):
+    for _ in range(int(steps*begin_sample)):
         chain.update_chain(5)
-    for _ in range(int(steps*0.5)):
+    for _ in range(int(steps*(1-begin_sample))):
         chain.update_chain(5)
         dictn[chain.toric.qubit_matrix.astype(np.uint8).tostring()] = np.count_nonzero(chain.toric.qubit_matrix)
     return dictn
 
-def raining_chains(qubit_matrix, size_in, p, steps_in=20000):
+def STDC(qubit_matrix, size_in, p, steps_in, begin_sample=0.5, raindrops=1, threads=1):
     #chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
-    global matrix
-    matrix = qubit_matrix
-    starting_eq = define_equivalence_class(qubit_matrix)
-    global size
-    size = size_in
-    global p_error
-    p_error = p
-    global steps
 
-    raindrops = 10 # must be a multiple of 10
+    starting_eq = define_equivalence_class(qubit_matrix)
 
     steps = steps_in
     eqdistr = np.zeros(16)
@@ -166,9 +149,9 @@ def raining_chains(qubit_matrix, size_in, p, steps_in=20000):
     for i in tqdm(range(16)):
         eq = starting_eq ^ i
         qubitlist = {}
-        for _ in range(int(raindrops / 10)):
+        for _ in range(int(raindrops)):
             with Pool(10) as pool:
-                output = pool.map(fun, np.full(raindrops,i).tolist())
+                output = pool.map(fun, [(i,size_in,p,qubit_matrix,steps, begin_sample)])
                 for j in range(raindrops):
                     qubitlist.update(output[j])
         for key in qubitlist:
