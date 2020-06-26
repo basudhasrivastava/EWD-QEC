@@ -6,7 +6,7 @@ import collections
 
 from numba import jit, prange
 from src.toric_model import Toric_code
-from src.util import Action
+from src.util import *
 from src.mcmc import *
 from src.mcmc import Chain
 import pandas as pd
@@ -61,14 +61,12 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
 
 def apply_logical_operator(qubit_matrix, number):
     binary = "{0:4b}".format(number)
-    for i in range(16):
-        
-        if binary[0] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=1, layer=0, X_pos=0, Z_pos=0)
-        if binary[1] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=3, layer=0, X_pos=0, Z_pos=0)
-        if binary[2] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=1, layer=1, X_pos=0, Z_pos=0)
-        if binary[3] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=3, layer=1, X_pos=0, Z_pos=0)
-        
-        return qubit_matrix
+    ops = eq_to_ops(define_equivalence_class(qubit_matrix))
+
+    for layer, op in enumerate(ops):
+        qubit_matrix, _ = apply_logical(qubit_matrix, operator=op, layer=layer, X_pos=0, Z_pos=0)
+
+    return qubit_matrix
 
 
 # add eq-crit that runs until a certain number of classes are found or not?
