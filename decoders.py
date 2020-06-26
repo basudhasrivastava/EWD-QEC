@@ -2,7 +2,7 @@ import numpy as np
 import random as rand
 import copy
 import collections
-
+import time
 
 from numba import jit, prange
 from src.toric_model import Toric_code
@@ -10,7 +10,7 @@ from src.util import Action
 from src.mcmc import *
 from src.mcmc import Chain
 import pandas as pd
-
+from multiprocessing import Pool
 from math import log, exp
 
 def single_temp(init_toric, p, max_iters, eps, burnin = 625, conv_criteria = 'error_based'):
@@ -77,22 +77,96 @@ def apply_logical_operator(qubit_matrix, number):
 # https://stackoverflow.com/questions/58605904/finding-all-paths-in-weighted-graph-from-node-a-to-b-with-weight-of-k-or-lower
 # i nuläget kommer "bra eq" att bli straffade eftersom att de inte kommer få chans att generera lika många unika kedjor --bör man sätta något tak? eller bara ta med de kortaste inom varje?
 
+global matrix
+global size
+global p_error
+global steps
 
-def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
-    chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
+def f(i):
+    global matrix
+    global size
+    global p_error
+    global steps
+    dictn = {}
+    chain = Chain(size, p_error)
+    chain.toric.qubit_matrix = apply_logical_operator(matrix, i)  # apply different logical operator to each chain
+    # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
+    current_class = define_equivalence_class(chain.toric.qubit_matrix)
+    for _ in range(int(steps*0.5)):
+        chain.update_chain(5)
+    for _ in range(int(steps*0.5)):
+        chain.update_chain(5)
+        dictn[chain.toric.qubit_matrix.astype(np.uint8).tostring()] = np.count_nonzero(chain.toric.qubit_matrix)
+    return dictn
 
+
+def single_temp_direct_sum(qubit_matrix, size_in, p, steps_in=20000):
+    #chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
+    global matrix
+    matrix = qubit_matrix
+    global size
+    size = size_in
+    global p_error
+    p_error = p
+    global steps
+    steps = steps_in
+    qubitlist = []
+
+    with Pool(16) as pool:
+        qubitlist = pool.map(f, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+
+    time.sleep(10)
+    # --------Determine EC-Distrubution--------
+    eqdistr = np.zeros(16)
+    beta = -log((p / 3) / (1-p))
+
+    for i in range(16):
+        for key in qubitlist[i]:
+            eqdistr[i] += exp(-beta*qubitlist[i][key])
+
+    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
+
+def fun(i):
+    global matrix
+    global size
+    global p_error
+    global steps
+    dictn = {}
+    chain = Chain(size, p_error)
+    chain.toric.qubit_matrix = apply_logical_operator(matrix, i)  # apply different logical operator to each chain
+    chain.toric.qubit_matrix = apply_stabilizers_uniform(chain.toric.qubit_matrix)
+    # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
+    current_class = define_equivalence_class(chain.toric.qubit_matrix)
+    for _ in range(int(steps*0.5)):
+        chain.update_chain(5)
+    for _ in range(int(steps*0.5)):
+        chain.update_chain(5)
+        dictn[chain.toric.qubit_matrix.astype(np.uint8).tostring()] = np.count_nonzero(chain.toric.qubit_matrix)
+    return dictn
+
+def raining_chains(qubit_matrix, size_in, p, steps_in=20000):
+    #chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
+    global matrix
+    matrix = qubit_matrix
+    starting_eq = define_equivalence_class(qubit_matrix)
+    global size
+    size = size_in
+    global p_error
+    p_error = p
+    global steps
+
+    raindrops = 64
+
+    steps = steps_in
     qubitlist = [{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]
 
     for i in range(16):
-        chain.toric.qubit_matrix = apply_logical_operator(qubit_matrix, i)  # apply different logical operator to each chain
-        # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
-        current_class = define_equivalence_class(chain.toric.qubit_matrix)
-        for _ in range(int(steps*0.8)):
-            chain.update_chain(5)
-        for _ in range(int(steps*0.2)):
-            chain.update_chain(5)
-            qubitlist[current_class][chain.toric.qubit_matrix.tostring()] = np.count_nonzero(chain.toric.qubit_matrix)
+        with Pool(raindrops) as pool:
+            output = pool.map(fun, np.full(raindrops,i).tolist())
+            for j in range(raindrops):
+                qubitlist[starting_eq ^ i].update(output[j])
 
+    time.sleep(10)
     # --------Determine EC-Distrubution--------
     eqdistr = np.zeros(16)
     beta = -log((p / 3) / (1-p))
