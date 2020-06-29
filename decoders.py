@@ -62,61 +62,13 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
 def apply_logical_operator(qubit_matrix, number):
     binary = "{0:4b}".format(number)
 
-    ops = eq_to_ops(define_equivalence_class(qubit_matrix))
+    ops = eq_to_ops(number ^ define_equivalence_class(qubit_matrix))
 
     for layer, op in enumerate(ops):
         apply_logical(qubit_matrix, operator=op, layer=layer, X_pos=0, Z_pos=0)
 
     return qubit_matrix
 
-'''
-    if binary[0] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=1, layer=0, X_pos=0, Z_pos=0)
-    if binary[1] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=3, layer=0, X_pos=0, Z_pos=0)
-    if binary[2] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=1, layer=1, X_pos=0, Z_pos=0)
-    if binary[3] == '1': qubit_matrix, _  = apply_logical(qubit_matrix, operator=3, layer=1, X_pos=0, Z_pos=0)
-'''
-
-
-def single_temp_mcmc(qubit_matrix, size, p, steps=20000):
-    chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
-
-    samples = int(0.9 * steps)
-    #qubit_list = np.zeros((16, samples, 2, size, size))
-    qubit_list = [{} for _ in range(16)]
-    short_stats = [[{'n':2*size**2, 'm':0, 'N':0} for _ in range(2)] for _ in range(16)]
-
-    init_eq = define_equivalence_class(qubit_matrix)
-    ordered_ops = eq_to_ordered_ops(init_eq)
-
-    for eq in range(16):
-        unique_counts = qubit_list[eq]
-        chain.toric.qubit_matrix = qubit_matrix
-        # Apply logical operators to get qubit_matrix into equivalence class i
-        for layer in range(2):
-            chain.toric.qubit_matrix, _ = apply_logical(chain.toric.qubit_matrix, ordered_ops[eq][layer], layer)
-
-        for _ in range(steps - samples):
-            chain.update_chain(5)
-        for step in range(samples):
-            chain.update_chain(5)
-            
-            key = chain.toric.qubit_matrix.tostring()
-            if key in unique_counts:
-                unique_counts[key][0] += 1
-                
-            else:
-                length = np.count_nonzero(chain.toric.qubit_matrix)
-                unique_counts[key] = (1, length)
-
-                if length < short_stats[eq][0]['n']:
-                    short_stats[eq].reverse()
-                    short_stats[eq][0] = {'n':length, 'm':1, 'N':1}
-                elif length < short_stats[eq][1] and not length == short_stats[eq][0]:
-                    short_stats[eq][1] = length
-            
-            #qubit_list[eq][step] = chain.toric.qubit_matrix
-
-    return qubit_list, short_stats
 # add eq-crit that runs until a certain number of classes are found or not?
 # separate eq-classes? qubitlist for diffrent eqs
 # vill göra detta men med mwpm? verkar finnas sätt att hitta "alla" kortaste, frågan är om man även kan hitta alla längre också
@@ -160,9 +112,6 @@ def single_temp_relative_count(qubit_matrix, size, p_error, p_sampling=None, ste
     max_length = 2 * size ** 2
 
     samples = int(0.9 * steps)
-    #qubit_list = np.zeros((16, samples, 2, size, size))
-    #qubit_list = [{} for _ in range(16)]
-    #short_stats = [{'n':max_length, 'm':0, 'N':0} for _ in range(2)]
 
     init_eq = define_equivalence_class(qubit_matrix)
     ordered_ops = eq_to_ordered_ops(init_eq)
@@ -228,51 +177,15 @@ def single_temp_relative_count(qubit_matrix, size, p_error, p_sampling=None, ste
                         # Then reset stats of next shortest chain
                         short_stats[1] = {'n':length, 'N':1}
 
-        # Get array of unique error chains and their occurences
-        #unique_chains, unique_counts = np.unique(qubit_list[eq], return_counts=True, axis=0)
-
-        # Keep track of the shortest and next shortest chain lengths
-        #shortest = max_length
-        #next_shortest = max_length
-
         # Dict to hold the total occurences and unique chains of each observed length
-        #Nm_n = qubit_list[eq]
-        #lengths = sorted(Nm_n.values(), key=itemgetter(1))
         shortest = short_stats[0]['n']
         shortest_count = short_stats[0]['N']
         next_shortest = short_stats[1]['n']
         next_shortest_count = short_stats[1]['N']
 
-        '''
-        Nm_n = {}
-        
-        # Iterate through the unique chains
-        for i, chain in enumerate(unique_chains):
-            # Get the current chain length, store it
-            length = np.count_nonzero(chain)
-            # Update shortest and next shortest lengths
-            if length < shortest:
-                next_shortest = shortest
-                shortest = length
-            elif length < next_shortest and length > shortest:
-                next_shortest = length
-
-            # Update the occurences of chain lengths
-            if length in Nm_n:
-                Nm_n[length] += np.array([1, unique_counts[i]])
-            else:
-                Nm_n[length] = np.array([1, unique_counts[i]])
-
-        if next_shortest == max_length:
-            next_shortest = shortest
-        '''
-
-        #shortest_counts = Nm_n[shortest]
         shortest_fraction = shortest_count / len_counts[shortest]
         next_shortest_fraction = next_shortest_count / len_counts[next_shortest]
         mean_fraction = 0.5 * (shortest_fraction + next_shortest_fraction * exp(-beta_sampling * (next_shortest - shortest)))
-        #mean_fraction = next_shortest_fraction * exp(-beta_sampling * (next_shortest - shortest))
-        #mean_fraction = shortest_fraction
 
         Z_e = sum([m * exp(-beta_sampling * shortest + d_beta * l) for l, m in len_counts.items()]) * mean_fraction
 
@@ -293,8 +206,8 @@ if __name__ == '__main__':
     size = 7
     steps = 10000 * int(1 + (size / 5) ** 4)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
-    p_error = 0.15
-    p_sampling = 0.20
+    p_error = 0.19
+    p_sampling = 0.19
     init_toric = Toric_code(size)
     tries = 2
     distrs = np.zeros((tries, 16), dtype=int)
@@ -305,6 +218,7 @@ if __name__ == '__main__':
         #init_qubit, mcmc_distr = reader.next()
         #print(init_qubit)
         print('################ Chain', i+1 , '###################')
+        #print('MCMC distr:', mcmc_distr)
         for i in range(tries):
             distrs[i] = single_temp_relative_count(init_qubit, size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
             print('Try', i+1, ':', distrs[i])
@@ -316,4 +230,3 @@ if __name__ == '__main__':
         
         #print('STRC distribution 1:', distr1)
         #print('STRC distribution 2:', distr2)
-    
