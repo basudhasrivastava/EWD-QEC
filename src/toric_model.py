@@ -3,14 +3,16 @@ import matplotlib.pyplot as plt
 from random import uniform, randint, random
 from collections import namedtuple
 from .util import Action, Perspective
-
+from numba import jit, njit
 
 class Toric_code():
+    nbr_eq_classes = 16
+
     def __init__(self, size):
         self.system_size = size
         self.plaquette_matrix = np.zeros((self.system_size, self.system_size), dtype=int)   # dont use self.plaquette
         self.vertex_matrix = np.zeros((self.system_size, self.system_size), dtype=int)      # dont use self.vertex
-        self.qubit_matrix = np.zeros((2, self.system_size, self.system_size), dtype=np.int8)
+        self.qubit_matrix = np.zeros((2, self.system_size, self.system_size), dtype=np.uint8)
         self.current_state = np.stack((self.vertex_matrix, self.plaquette_matrix,), axis=0)
         self.next_state = np.stack((self.vertex_matrix, self.plaquette_matrix), axis=0)
         self.ground_state = True    # True: only trivial loops,
@@ -61,8 +63,8 @@ class Toric_code():
         return _apply_logical(self.qubit_matrix, op, X_pos, Z_pos)
 
 
-    def apply_stabilizer(self):
-        pass
+    def apply_stabilizer(self, row=int, col=int, operator=int):
+        return _apply_stabilizer(self.qubit_matrix, row, col, operator)
 
 
     def apply_random_logical(self):
@@ -70,15 +72,15 @@ class Toric_code():
 
 
     def apply_random_stabilizer(self):
-        pass
+        return _apply_random_stabilizer(self.qubit_matrix)
 
 
-    def apply_stabilizers_uniform(self):
-        pass
+    def apply_stabilizers_uniform(self, p=0.5):
+        return _apply_stabilizers_uniform(self.qubit_matrix, p)
 
 
     def define_equivalence_class(self):
-        pass
+        _define_equivalence_class(self.qubit_matrix)
 
 
     def to_class(self, eq): # apply_logical_operators i decoders.py
@@ -329,10 +331,6 @@ class Toric_code():
         plt.savefig('plots/graph_'+str(title)+'.png')
         plt.close()
 
-<<<<<<< HEAD
-def _count_errors(qubit_matrix):
-    return np.count_nonzero(qubit_matrix)
-=======
 
 def _count_errors():
     pass
@@ -387,10 +385,6 @@ def _apply_logical(qubit_matrix, operator=np.int8, layer=np.int8, X_pos=0, Z_pos
     return result_qubit_matrix, error_count
 
 
-def _apply_stabilizer():
-    pass
-
-
 @njit
 def _apply_random_logical(qubit_matrix):
     size = qubit_matrix.shape[1]
@@ -419,14 +413,100 @@ def _apply_random_logical(qubit_matrix):
     return result_qubit_matrix, result_error_change
 
 
-def _apply_random_stabilizer():
-    pass
+@njit
+def _apply_random_stabilizer(qubit_matrix):
+    # select random coordinates where to apply operator
+    size = qubit_matrix.shape[1]
+    row = int(random() * size)
+    col = int(random() * size)
+    operator = int(random() * 2)  # we only care about X and Z, and Y is represented by 2. Therefore:
+    if operator == 0:
+        operator = 3
+    return _apply_stabilizer(qubit_matrix, row, col, operator)
 
 
-def _apply_stabilizers_uniform():
-    pass
+def _apply_stabilizers_uniform(qubit_matrix, p=0.5):
+    size = qubit_matrix.shape[1]
+    result_qubit_matrix = np.copy(qubit_matrix)
+    random_stabilizers = np.random.rand(2, size, size)
+    random_stabilizers = np.less(random_stabilizers, p)
+
+    # Numpy magic for iterating through matrix
+    it = np.nditer(random_stabilizers, flags=['multi_index'])
+    while not it.finished:
+        if it[0]:
+            op, row, col = it.multi_index
+            if op == 0:
+                op = 3
+            result_qubit_matrix, _ = _apply_stabilizer(result_qubit_matrix, row, col, op)
+        it.iternext()
+    return result_qubit_matrix
+
+
+def _define_equivalence_class(qubit_matrix):
+    # checks odd and even errors in each layer
+    # gives a combination of four numbers corresponding to an equivalence class
+
+    # checks odd or even x-errors in first layer
+    x1prov = np.count_nonzero(qubit_matrix[0] == 1)
+
+    # checks odd or even z-errors in first layer
+    z1prov = np.count_nonzero(qubit_matrix[0] == 3)
+
+    # checks odd or even y-erros in first layer and adds them to total number of x/z errors in first layer
+    y1prov = np.count_nonzero(qubit_matrix[0] == 2)
+    x1 = x1prov + y1prov
+    z1 = z1prov + y1prov
+
+    # checks odd or even x-errors in second layer
+    x2prov = np.count_nonzero(qubit_matrix[1] == 1)
+
+    # checks odd or even z-errors in second layer
+    z2prov = np.count_nonzero(qubit_matrix[1] == 3)
+
+    # checks odd or even y-erros in second layer and adds them to total number of x/z errors in second layer
+    y2prov = np.count_nonzero(qubit_matrix[1] == 2)
+    x2 = x2prov + y2prov
+    z2 = z2prov + y2prov
+
+    # stores whether there was an odd or even number of errors
+    x1 = x1 % 2
+    z1 = z1 % 2
+
+    x2 = x2 % 2
+    z2 = z2 % 2
+
+    return x1 + z1 * 2 + x2 * 4 + z2 * 8
+
+
+@njit
+def _apply_stabilizer(qubit_matrix, row=int, col=int, operator=int):
+    # gives the resulting qubit error matrix from applying (row, col, operator) stabilizer
+    # doesn't update input qubit_matrix
+    size = qubit_matrix.shape[1]
+    if operator == 1:
+        qubit_matrix_layers = np.array([1, 1, 0, 0])
+        rows = np.array([row, row, row, (row - 1) % size])
+        cols = np.array([col, (col - 1) % size, col, col])
+
+    elif operator == 3:
+        qubit_matrix_layers = np.array([1, 0, 0, 1])
+        rows = np.array([row, row, row, (row + 1) % size])
+        cols = np.array([col, col, (col + 1) % size, col])
+
+    # Have to make copy, else original matrix is changed
+    result_qubit_matrix = np.copy(qubit_matrix)
+    error_count = 0
+
+    for i in range(4):
+        old_qubit = qubit_matrix[qubit_matrix_layers[i], rows[i], cols[i]]
+        new_qubit = old_qubit ^ operator
+        result_qubit_matrix[qubit_matrix_layers[i], rows[i], cols[i]] = new_qubit
+        if old_qubit and not new_qubit:
+            error_count -= 1
+        elif new_qubit and not old_qubit:
+            error_count += 1
 
 
 def _define_equivalence_class():
     pass
->>>>>>> 48011a00010d93be623731b881a4cdf16c201564
