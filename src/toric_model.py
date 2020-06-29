@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from random import uniform, randint
+from random import uniform, randint, random
 from collections import namedtuple
 from .util import Action, Perspective
 
@@ -10,7 +10,7 @@ class Toric_code():
         self.system_size = size
         self.plaquette_matrix = np.zeros((self.system_size, self.system_size), dtype=int)   # dont use self.plaquette
         self.vertex_matrix = np.zeros((self.system_size, self.system_size), dtype=int)      # dont use self.vertex
-        self.qubit_matrix = np.zeros((2, self.system_size, self.system_size), dtype=int)
+        self.qubit_matrix = np.zeros((2, self.system_size, self.system_size), dtype=np.int8)
         self.current_state = np.stack((self.vertex_matrix, self.plaquette_matrix,), axis=0)
         self.next_state = np.stack((self.vertex_matrix, self.plaquette_matrix), axis=0)
         self.ground_state = True    # True: only trivial loops,
@@ -57,8 +57,8 @@ class Toric_code():
        return _count_errors(self.qubit_matrix)
 
 
-    def apply_logical(self):
-        pass
+    def apply_logical(self, op=np.int8, layer=np.int8, X_pos=0, Z_pos=0):
+        return _apply_logical(self.qubit_matrix, op, X_pos, Z_pos)
 
 
     def apply_stabilizer(self):
@@ -66,7 +66,7 @@ class Toric_code():
 
 
     def apply_random_logical(self):
-        pass
+        return _apply_random_logical(self.qubit_matrix)
 
 
     def apply_random_stabilizer(self):
@@ -82,7 +82,17 @@ class Toric_code():
 
 
     def to_class(self, eq): # apply_logical_operators i decoders.py
-        pass
+        diff = eq ^ self.define_equivalence_class
+        mask = 0b1010
+        xor = (mask & diff) >> 1
+        ops = diff ^ xor
+        ops2 = ops >> 2
+        ops1 = 0b0011 & ops
+
+        for layer, op in enumerate((ops1, ops2)):
+            qubit_matrix, _ = self.apply_logical(operator=op, layer=layer, X_pos=0, Z_pos=0)
+
+        return qubit_matrix
 
 
     def syndrom(self, state):
@@ -319,5 +329,104 @@ class Toric_code():
         plt.savefig('plots/graph_'+str(title)+'.png')
         plt.close()
 
+<<<<<<< HEAD
 def _count_errors(qubit_matrix):
     return np.count_nonzero(qubit_matrix)
+=======
+
+def _count_errors():
+    pass
+
+
+@njit
+def _apply_logical(qubit_matrix, operator=np.int8, layer=np.int8, X_pos=0, Z_pos=0):
+        # Have to make copy, else original matrix is changed
+    result_qubit_matrix = np.copy(qubit_matrix)
+
+    # Operator is zero means identity, no need to keep going
+    if operator == 0:
+        return result_qubit_matrix, 0
+
+    size = qubit_matrix.shape[1]
+
+    error_count = 0
+
+    # layer 0 is qubits on vertical grid lines
+    # layer 1 is qubits on horizontal grid lines
+    # logical X works orthogonal to grid lines
+    # logical Z works parallel to grid lines
+
+    # Transpose copied matrix if layer is 1. Makes next step more straightforward
+    # Editing orient_result changes result_qubit matrix whether transposed or not
+    if layer == 0:
+        orient_result = result_qubit_matrix
+    elif layer == 1:
+        orient_result = result_qubit_matrix.transpose(0, 2, 1)
+
+    do_X = (operator == 1 or operator == 2)
+    do_Z = (operator == 3 or operator == 2)
+
+    # Helper function
+    def qubit_update(row, col, op):
+        old_qubit = orient_result[layer, row, col]
+        new_qubit = old_qubit ^ op
+        orient_result[layer, row, col] = new_qubit
+        if old_qubit and not new_qubit:
+            return -1
+        elif new_qubit and not old_qubit:
+            return 1
+        else:
+            return 0
+
+    for index in range(size):
+        if do_X:
+            error_count += qubit_update(X_pos, index, 1)
+        if do_Z:
+            error_count += qubit_update(index, Z_pos, 3)
+
+    return result_qubit_matrix, error_count
+
+
+def _apply_stabilizer():
+    pass
+
+
+@njit
+def _apply_random_logical(qubit_matrix):
+    size = qubit_matrix.shape[1]
+
+    # operator to use, 2 (Y) will make both X and Z on the same layer. 0 is identity
+    # one operator for each layer
+    operators = [int(random() * 4), int(random() * 4)]
+
+    # ok to not copy, since apply_logical doesnt change input
+    result_qubit_matrix = qubit_matrix
+    result_error_change = 0
+
+    for layer, op in enumerate(operators):
+        if op == 1 or op == 2:
+            X_pos = int(random() * size)
+        else:
+            X_pos = 0
+        if op == 3 or op == 2:
+            Z_pos = int(random() * size)
+        else:
+            Z_pos = 0
+
+        result_qubit_matrix, tmp_error_change = _apply_logical(result_qubit_matrix, op, layer, X_pos, Z_pos)
+        result_error_change += tmp_error_change
+
+    return result_qubit_matrix, result_error_change
+
+
+def _apply_random_stabilizer():
+    pass
+
+
+def _apply_stabilizers_uniform():
+    pass
+
+
+def _define_equivalence_class():
+    pass
+>>>>>>> 48011a00010d93be623731b881a4cdf16c201564
