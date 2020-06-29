@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from random import uniform, randint
+import random as rand
 
 class Planar_code():
     def __init__(self, size):
@@ -29,8 +30,8 @@ class Planar_code():
         pass
 
 
-    def apply_stabilizer(self):
-        pass
+    def apply_stabilizer(self, row=int, col=int, operator=int):
+        return _apply_stabilizer(self.qubit_matrix, row, col, operator)
 
 
     def apply_random_logical(self):
@@ -38,7 +39,7 @@ class Planar_code():
 
 
     def apply_random_stabilizer(self):
-        pass
+        return _apply_random_stabilizer(self.qubit_matrix)
 
 
     def apply_stabilizers_uniform(self):
@@ -46,7 +47,16 @@ class Planar_code():
 
 
     def define_equivalence_class(self):
-        pass
+        # of x errors in the first coulum
+        x_errors = np.count_nonzero(self.qubit_matrix[0,:,0]==1)
+        x_errors += np.count_nonzero(self.qubit_matrix[0,:,0]==2)
+
+        # of z errors in the first row
+        z_errors = np.count_nonzero(self.qubit_matrix[0,0,:]==3)
+        z_errors += np.count_nonzero(self.qubit_matrix[0,0,:]==2)
+
+        # return the parity of the calculated #'s of errors
+        return (x_errors % 2) + 2 * (z_errors % 2)
 
 
     def to_class(self, eq): # apply_logical_operators i decoders.py
@@ -170,3 +180,62 @@ class Planar_code():
         plt.savefig('plots/graph_'+str(title)+'.png')
         plt.close()
 
+@njit
+def _apply_random_stabilizer(qubit_matrix):
+    size = qubit_matrix.shape[1]
+    if rand.random() < 0.5:
+        # operator = 1 = x
+        return _apply_stabilizer(qubit_matrix,rand.randint(0,size-2),rand.randint(0,size-1),1)
+    else: 
+        # operator = 3 = z
+        return _apply_stabilizer(qubit_matrix,rand.randint(0,size-1),rand.randint(0,size-2),3)
+
+@njit
+def _apply_stabilizer(qubit_matrix, row=int, col=int, operator=int):
+    # gives the resulting qubit error matrix from applying (row, col, operator) stabilizer
+    # doesn't update input qubit_matrix
+    size = qubit_matrix.shape[1]
+    if operator == 1:
+        # Special cases depending on where the stabilizer lives (square/triangle - in the middle/on the boundary)
+        if col == 0:
+            qubit_matrix_layers = np.array([0, 0, 1])
+            rows = np.array([row, row + 1, row])
+            cols = np.array([0, 0, 0])
+        elif col == size - 1:
+            qubit_matrix_layers = np.array([0, 0, 1])
+            rows = np.array([row, row + 1, row])
+            cols = np.array([col, col, col - 1])
+        else:
+            qubit_matrix_layers = np.array([0, 0, 1, 1])
+            rows = np.array([row, row + 1, row, row])
+            cols = np.array([col, col, col, col - 1])
+
+    elif operator == 3:
+        # Special cases depending on where the stabilizer lives (square/triangle - in the middle/on the boundary)
+        if row == 0:
+            qubit_matrix_layers = np.array([0, 0, 1])
+            rows = np.array([0, 0, 0])
+            cols = np.array([col, col + 1, col])
+        elif row == size - 1:
+            qubit_matrix_layers = np.array([0, 0, 1])
+            rows = np.array([row, row, row - 1])
+            cols = np.array([col, col + 1, col])
+        else:
+            qubit_matrix_layers = np.array([0, 0, 1, 1])
+            rows = np.array([row, row, row, row - 1])
+            cols = np.array([col, col + 1, col, col]) 
+
+    # Have to make copy, else original matrix is changed
+    result_qubit_matrix = np.copy(qubit_matrix)
+    error_count = 0
+
+    for i in range(len(qubit_matrix_layers)):
+        old_qubit = qubit_matrix[qubit_matrix_layers[i], rows[i], cols[i]]
+        new_qubit = operator ^ old_qubit
+        result_qubit_matrix[qubit_matrix_layers[i], rows[i], cols[i]] = new_qubit
+        if old_qubit and not new_qubit:
+            error_count -= 1
+        elif new_qubit and not old_qubit:
+            error_count += 1
+
+    return result_qubit_matrix, error_count
