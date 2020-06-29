@@ -13,33 +13,33 @@ import pandas as pd
 from math import log, exp
 from operator import itemgetter
 
-def single_temp(init_toric, p, max_iters, eps, burnin = 625, conv_criteria = 'error_based'):
+def single_temp(init_code, p, max_iters, eps, burnin = 625, conv_criteria = 'error_based'):
     nbr_eq_class = 16
-    ground_state = define_equivalence_class(init_toric.qubit_matrix)
+    ground_state = define_equivalence_class(init_code.qubit_matrix)
     ladder = [] # list of chain objects
     nbr_errors_chain = np.zeros((16, max_iters))
     convergence_reached = np.zeros(16)
     mean_array = np.zeros(16)
-    
+
     eq_array_translate = np.zeros(16)
-    
+
     for i in range(nbr_eq_class):
-        ladder.append(Chain(init_toric.system_size, p))
-        ladder[i].toric = copy.deepcopy(init_toric)  # give all the same initial state
-        ladder[i].toric.qubit_matrix = apply_logical_operator(ladder[i].toric.qubit_matrix, i) # apply different logical operator to each chain
-        eq_array_translate[i] = define_equivalence_class(ladder[i].toric.qubit_matrix)
+        ladder.append(Chain(init_code.system_size, p))
+        ladder[i].code = copy.deepcopy(init_code)  # give all the same initial state
+        ladder[i].code.qubit_matrix = apply_logical_operator(ladder[i].code.qubit_matrix, i) # apply different logical operator to each chain
+        eq_array_translate[i] = define_equivalence_class(ladder[i].code.qubit_matrix)
     print(eq_array_translate)
     for i in range(nbr_eq_class):
         for j in range(max_iters):
             ladder[i].update_chain(1)
-            nbr_errors_chain[i ,j] = np.count_nonzero(ladder[i].toric.qubit_matrix)
+            nbr_errors_chain[i ,j] = np.count_nonzero(ladder[i].code.qubit_matrix)
             if not convergence_reached[i] and j >= burnin:
                 if conv_criteria == 'error_based':
                     convergence_reached[i] = conv_crit_error_based(nbr_errors_chain[i, :j], j, eps)
-                    if convergence_reached[i] == 1: 
+                    if convergence_reached[i] == 1:
                         mean_array[i] = np.average(nbr_errors_chain[i ,:j])
                         print(j, 'convergence iterations')
-                        break 
+                        break
     print(ground_state, 'ground state')
     return mean_array, convergence_reached, eq_array_translate
 
@@ -80,14 +80,14 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
     qubitlist = [{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]
 
     for i in range(16):
-        chain.toric.qubit_matrix = apply_logical_operator(qubit_matrix, i)  # apply different logical operator to each chain
+        chain.code.qubit_matrix = apply_logical_operator(qubit_matrix, i)  # apply different logical operator to each chain
         # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
-        current_class = define_equivalence_class(chain.toric.qubit_matrix)
+        current_class = define_equivalence_class(chain.code.qubit_matrix)
         for _ in range(int(steps*0.8)):
             chain.update_chain(5)
         for _ in range(int(steps*0.2)):
             chain.update_chain(5)
-            qubitlist[current_class][chain.toric.qubit_matrix.tostring()] = np.count_nonzero(chain.toric.qubit_matrix)
+            qubitlist[current_class][chain.code.qubit_matrix.tostring()] = np.count_nonzero(chain.code.qubit_matrix)
 
     # --------Determine EC-Distrubution--------
     eqdistr = np.zeros(16)
@@ -105,7 +105,7 @@ def single_temp_relative_count(qubit_matrix, size, p_error, p_sampling=None, ste
     beta_error = -log((p_error / 3) / (1 - p_error))
     beta_sampling = -log((p_sampling / 3) / (1 - p_sampling))
     d_beta = beta_sampling - beta_error
-    
+
     Z_arr = np.zeros(16)
     max_length = 2 * size ** 2
 
@@ -122,27 +122,27 @@ def single_temp_relative_count(qubit_matrix, size, p_error, p_sampling=None, ste
         # List where first (last) element is stats of shortest (next shortest) length
         # n is length of chain. N is number of unique chains of this length
         short_stats = [{'n':max_length, 'N':0} for _ in range(2)]
-        chain.toric.qubit_matrix = qubit_matrix
+        chain.code.qubit_matrix = qubit_matrix
         # Apply logical operators to get qubit_matrix into equivalence class i
         for layer in range(2):
-            chain.toric.qubit_matrix, _ = apply_logical(chain.toric.qubit_matrix, ordered_ops[eq][layer], layer)
+            chain.code.qubit_matrix, _ = apply_logical(chain.code.qubit_matrix, ordered_ops[eq][layer], layer)
 
         for _ in range(steps - samples):
             chain.update_chain(5)
         for step in range(samples):
             chain.update_chain(5)
-            
-            key = chain.toric.qubit_matrix.tostring()
+
+            key = chain.code.qubit_matrix.tostring()
 
             # Check if this error chain has already been seen
             if key in unique_lengths:
                 # Increment counter for chains of this length
                 len_counts[unique_lengths[key]] += 1
-            
+
             # If this chain is new, add it to dictionary of unique chains
             else:
                 # Calculate length of this chain
-                length = np.count_nonzero(chain.toric.qubit_matrix)
+                length = np.count_nonzero(chain.code.qubit_matrix)
                 # Store number of observations and length of this chain
                 unique_lengths[key] = length
 
@@ -159,7 +159,7 @@ def single_temp_relative_count(qubit_matrix, size, p_error, p_sampling=None, ste
                     elif length == short_stats[1]['n']:
                         # Then increment counter of unique chains of next shortest length
                         short_stats[1]['N'] += 1
-                    
+
                 else:
                     # Initiate counter for chains of this length
                     len_counts[unique_lengths[key]] = 1
@@ -194,10 +194,10 @@ def single_temp_relative_count(qubit_matrix, size, p_error, p_sampling=None, ste
 
 if __name__ == '__main__':
     '''
-    init_toric = Toric_code(5)
+    init_code = Toric_code(5)
     p_error = 0.1
-    init_toric.generate_random_error(p_error)
-    mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 100000, conv_criteria = 'error_based') 
+    init_code.generate_random_error(p_error)
+    mean_array, convergence_reached, eq_array_translate = single_temp(init_code, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 100000, conv_criteria = 'error_based')
     print(eq_array_translate[np.argmin(mean_array)], 'guess')
     print(convergence_reached)
     '''
@@ -206,13 +206,13 @@ if __name__ == '__main__':
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
     p_error = 0.19
     p_sampling = 0.19
-    init_toric = Toric_code(size)
+    init_code = Toric_code(size)
     tries = 2
     distrs = np.zeros((tries, 16), dtype=int)
     mean_tvd = 0.0
     for i in range(10):
-        init_toric.generate_random_error(p_error)
-        init_qubit = np.copy(init_toric.qubit_matrix)
+        init_code.generate_random_error(p_error)
+        init_qubit = np.copy(init_code.qubit_matrix)
         #init_qubit, mcmc_distr = reader.next()
         #print(init_qubit)
         print('################ Chain', i+1 , '###################')
@@ -220,11 +220,11 @@ if __name__ == '__main__':
         for i in range(tries):
             distrs[i] = single_temp_relative_count(init_qubit, size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
             print('Try', i+1, ':', distrs[i])
-        
+
         tvd = sum(abs(distrs[1]-distrs[0]))
         mean_tvd += tvd
         print('TVD:', tvd)
     print('Mean TVD:', mean_tvd / 10)
-        
+
         #print('STRC distribution 1:', distr1)
         #print('STRC distribution 2:', distr2)
