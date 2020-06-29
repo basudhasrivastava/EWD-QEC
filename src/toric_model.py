@@ -53,7 +53,38 @@ class Toric_code():
         new_operator = self.rule_table[int(old_operator), int(add_operator)]
         self.qubit_matrix[qubit_matrix, row, col] = new_operator        
         self.syndrom('next_state')
-    
+
+
+    def count_errors(self):
+        pass
+
+
+    def apply_logical(self):
+        pass
+
+
+    def apply_stabilizer(self):
+        pass
+
+
+    def apply_random_logical(self):
+        pass
+
+
+    def apply_random_stabilizer(self):
+        pass
+
+
+    def apply_stabilizers_uniform(self):
+        pass
+
+
+    def define_equivalence_class(self):
+        pass
+
+
+    def to_class(self, eq): # apply_logical_operators i decoders.py
+        pass
 
 
     def syndrom(self, state):
