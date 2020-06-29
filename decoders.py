@@ -60,12 +60,10 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
 
 
 def apply_logical_operator(qubit_matrix, number):
-    binary = "{0:4b}".format(number)
-
     ops = eq_to_ops(number ^ define_equivalence_class(qubit_matrix))
 
     for layer, op in enumerate(ops):
-        apply_logical(qubit_matrix, operator=op, layer=layer, X_pos=0, Z_pos=0)
+        qubit_matrix, _ = apply_logical(qubit_matrix, operator=op, layer=layer, X_pos=0, Z_pos=0)
 
     return qubit_matrix
 
