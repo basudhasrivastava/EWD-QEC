@@ -1,36 +1,40 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from random import uniform, randint, random
-from numba import jit
+from numba import jit, njit
 import random as rand
 
 class Planar_code():
+    nbr_eq_classes = 4
+    
     def __init__(self, size):
         self.system_size = size
-        self.qubit_matrix = np.zeros((2, self.system_size, self.system_size), dtype=np.int8)
+        self.qubit_matrix = np.zeros((2, self.system_size, self.system_size), dtype=np.uint8)
         self.plaquette_matrix = np.zeros((size, size-1), dtype=int)
         self.vertex_matrix = np.zeros((size-1, size), dtype=int)
-        self.syndom = np.copy(self.qubit_matrix)
+        self.syndrom = np.copy(self.qubit_matrix)
 
 
     def generate_random_error(self, p_error):
-        for i in range(2):
-            qubits = np.random.uniform(0, 1, size=(self.system_size, self.system_size))
-            error = qubits > p_error
-            no_error = qubits < p_error
-            qubits[error] = 0
-            qubits[no_error] = 1
-            pauli_error = np.random.randint(3, size=(self.system_size, self.system_size)) + 1
-            self.qubit_matrix[i,:,:] = np.multiply(qubits, pauli_error)
-        self.syndrom()
+        #for i in range(2):
+        qubits = np.random.uniform(0, 1, size=(2, self.system_size, self.system_size))
+        no_error = qubits > p_error
+        error = qubits < p_error
+        qubits[no_error] = 0
+        qubits[error] = 1
+        pauli_error = np.random.randint(3, size=(2, self.system_size, self.system_size)) + 1
+        self.qubit_matrix[:,:,:] = np.multiply(qubits, pauli_error)
+        self.qubit_matrix[1,-1,:] = 0
+        self.qubit_matrix[1,:,-1] = 0
+        #self.syndrom()
 
 
     def count_errors(self):
         return _count_errors(self.qubit_matrix)
 
 
-    def apply_logical(self, op, X_pos=0, Z_pos=0):
-        return _apply_logical(self.qubit_matrix, op, X_pos, Z_pos)
+    def apply_logical(self, operator=int, X_pos=0, Z_pos=0):
+        return _apply_logical(self.qubit_matrix, operator, X_pos, Z_pos)
 
 
     def apply_stabilizer(self, row=int, col=int, operator=int):
@@ -237,14 +241,13 @@ class Planar_code():
 
 
 @njit
-def _apply_logical(qubit_matrix, operator=np.int8, X_pos=0, Z_pos=0):
+def _apply_logical(qubit_matrix, operator=int, X_pos=0, Z_pos=0):
     # Have to make copy, else original matrix is changed
     result_qubit_matrix = np.copy(qubit_matrix)
 
     # Operator is zero means identity, no need to keep going
     if operator == 0:
         return result_qubit_matrix, 0
-
     size = qubit_matrix.shape[1]
     layer = 0
 
@@ -270,7 +273,7 @@ def _apply_logical(qubit_matrix, operator=np.int8, X_pos=0, Z_pos=0):
             error_count += qubit_update(X_pos, i, 1)
         if do_Z:
             error_count += qubit_update(i, Z_pos, 3)
-
+    
     return result_qubit_matrix, error_count
 
 
@@ -343,7 +346,6 @@ def _apply_stabilizer(qubit_matrix, row=int, col=int, operator=int):
     # Have to make copy, else original matrix is changed
     result_qubit_matrix = np.copy(qubit_matrix)
     error_count = 0
-
     for i in range(len(qubit_matrix_layers)):
         old_qubit = qubit_matrix[qubit_matrix_layers[i], rows[i], cols[i]]
         new_qubit = operator ^ old_qubit
@@ -355,10 +357,7 @@ def _apply_stabilizer(qubit_matrix, row=int, col=int, operator=int):
 
     return result_qubit_matrix, error_count
 
+
 @jit(nopython=True)
-def _count_errors(qubit_matrix):
-    size = qubit_matrix.shape[1]
-    a = np.ones((size, size))
-    b = np.ones((size-1, size-1))
-    b = np.pad(b, (0, 1), mode='constant')
-    return np.count_nonzero(np.multiply(qubit_matrix, np.vstack(a,b)))
+def _count_errors(qubit_matrix): # Kolla så inte fel
+    return np.count_nonzero(qubit_matrix)

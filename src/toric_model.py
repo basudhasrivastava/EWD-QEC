@@ -3,14 +3,16 @@ import matplotlib.pyplot as plt
 from random import uniform, randint, random
 from collections import namedtuple
 from .util import Action, Perspective
-
+from numba import jit, njit
 
 class Toric_code():
+    nbr_eq_classes = 16
+    
     def __init__(self, size):
         self.system_size = size
         self.plaquette_matrix = np.zeros((self.system_size, self.system_size), dtype=int)   # dont use self.plaquette
         self.vertex_matrix = np.zeros((self.system_size, self.system_size), dtype=int)      # dont use self.vertex 
-        self.qubit_matrix = np.zeros((2, self.system_size, self.system_size), dtype=np.int8)
+        self.qubit_matrix = np.zeros((2, self.system_size, self.system_size), dtype=np.uint8)
         self.current_state = np.stack((self.vertex_matrix, self.plaquette_matrix,), axis=0)
         self.next_state = np.stack((self.vertex_matrix, self.plaquette_matrix), axis=0)
         self.ground_state = True    # True: only trivial loops, 
@@ -417,9 +419,9 @@ def _apply_random_logical(qubit_matrix):
 def _apply_random_stabilizer(qubit_matrix):
     # select random coordinates where to apply operator
     size = qubit_matrix.shape[1]
-    row = int(rand.random() * size)
-    col = int(rand.random() * size)
-    operator = int(rand.random() * 2)  # we only care about X and Z, and Y is represented by 2. Therefore:
+    row = int(random() * size)
+    col = int(random() * size)
+    operator = int(random() * 2)  # we only care about X and Z, and Y is represented by 2. Therefore:
     if operator == 0:
         operator = 3
     return _apply_stabilizer(qubit_matrix, row, col, operator)
@@ -500,7 +502,7 @@ def _apply_stabilizer(qubit_matrix, row=int, col=int, operator=int):
 
     for i in range(4):
         old_qubit = qubit_matrix[qubit_matrix_layers[i], rows[i], cols[i]]
-        new_qubit = rule_table[operator][old_qubit]
+        new_qubit = old_qubit ^ operator
         result_qubit_matrix[qubit_matrix_layers[i], rows[i], cols[i]] = new_qubit
         if old_qubit and not new_qubit:
             error_count -= 1

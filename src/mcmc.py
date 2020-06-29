@@ -18,11 +18,14 @@ rule_table = np.array(([[0, 1, 2, 3], [1, 0, 3, 2],
 
 
 class Chain:
-    def __init__(self, size, p, code = 'toric'):
-        if code == 'toric': self.code = Toric_code(size)
-        elif code == 'planar': self.code = Planar_code(size)
+    def __init__(self, size, p, code=None):
+        if code is None:
+             self.code = Toric_code(size)
         else:
-            raise ValueError("set code to 'planar' or 'toric'")
+            if not isinstance(code, (Toric_code, Planar_code)):
+                raise ValueError("'code' has to be None, or an instance of Planar_code or Toric_code")
+            else:
+                self.code = code
 
         self.size = size
         self.p = p
@@ -36,9 +39,9 @@ class Chain:
             for _ in range(iters):
                 # apply logical or stabilizer with p_logical
                 if rand.random() < self.p_logical:
-                    new_matrix, qubit_errors_change = apply_random_logical(self.code.qubit_matrix)
+                    new_matrix, qubit_errors_change = self.code.apply_random_logical()
                 else:
-                    new_matrix, qubit_errors_change = apply_random_stabilizer(self.code.qubit_matrix)
+                    new_matrix, qubit_errors_change = self.code.apply_random_stabilizer()
 
                 # Avoid calculating r if possible. If self.p is 0.75 r = 1 and we accept all changes
                 # If the new qubit matrix has equal or fewer errors, r >= 1 and we also accept all changes
@@ -48,13 +51,15 @@ class Chain:
                 # acceptence ratio
                 if rand.random() < self.factor ** qubit_errors_change:
                     self.code.qubit_matrix = new_matrix
+
         else:
             for _ in range(iters):
-                new_matrix, qubit_errors_change = apply_random_stabilizer(self.code.qubit_matrix)
+                new_matrix, qubit_errors_change = self.code.apply_random_stabilizer()
 
                 # acceptence ratio
                 if rand.random() < self.factor ** qubit_errors_change:
                     self.code.qubit_matrix = new_matrix
+
 
     # plot toric code
     """def plot(self, name, eq_class=None):
