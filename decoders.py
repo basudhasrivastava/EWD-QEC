@@ -122,40 +122,58 @@ def single_temp_direct_sum(qubit_matrix, size_in, p, steps_in=20000):
 # i nuläget kommer "bra eq" att bli straffade eftersom att de inte kommer få chans att generera lika många unika kedjor --bör man sätta något tak? eller bara ta med de kortaste inom varje?
 
 
-def fun(input_data_tuple):
-    i, size, p_error, matrix, steps, begin_sample = input_data_tuple
-    dictn = {}
+def droplet(input_data_tuple):
+    logical_operator, size, p_error, matrix, steps, begin_sample = input_data_tuple
+    samples = {}
     chain = Chain(size, p_error)
-    chain.toric.qubit_matrix = apply_logical_operator(matrix, i)  # apply different logical operator to each chain
+
+    chain.toric.qubit_matrix = apply_logical_operator(matrix, logical_operator)  # apply different logical operator to each chain
     chain.toric.qubit_matrix = apply_stabilizers_uniform(chain.toric.qubit_matrix)
+
     # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
-    current_class = define_equivalence_class(chain.toric.qubit_matrix)
     for _ in range(int(steps*begin_sample)):
         chain.update_chain(5)
     for _ in range(int(steps*(1-begin_sample))):
         chain.update_chain(5)
-        dictn[chain.toric.qubit_matrix.astype(np.uint8).tostring()] = np.count_nonzero(chain.toric.qubit_matrix)
-    return dictn
+        samples[chain.toric.qubit_matrix.astype(np.uint8).tostring()] = np.count_nonzero(chain.toric.qubit_matrix)
+    
+    return samples
 
-def STDC(qubit_matrix, size_in, p, steps_in, begin_sample=0.5, raindrops=1, threads=1):
-    #chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
+
+def STDC(qubit_matrix, size, p, steps, begin_sample=0.5, raindrops=1, threads=1):
+    # argument checks #
+    if threads < 1 or raindrops < 1  or begin_sample < 0 or begin_sample > 1: 
+        raise ValueError("Invalid arguments.")
+    if threads > raindrops:
+        print('WARN: Cannot use more threads than raindrops, setting threads = raindrops.')
+        threads = raindrops
+
+    runlist = list(threads for _ in range(int(raindrops/threads)))
+    if raindrops % threads > 0:
+        runlist.append(raindrops % threads)
+
+    print(runlist)
+
 
     starting_eq = define_equivalence_class(qubit_matrix)
-
-    steps = steps_in
     eqdistr = np.zeros(16)
     beta = -log((p / 3) / (1-p))
-
-    for i in tqdm(range(16)):
-        eq = starting_eq ^ i
+    for logical_operator in tqdm(range(16)):
+        eq = starting_eq ^ logical_operator
         qubitlist = {}
-        for _ in range(int(raindrops)):
-            with Pool(10) as pool:
-                output = pool.map(fun, [(i,size_in,p,qubit_matrix,steps, begin_sample)])
-                for j in range(raindrops):
-                    qubitlist.update(output[j])
+        for parr in runlist:
+            if parr > 1:
+                with Pool(parr) as pool:
+                    output = pool.map(droplet, [(logical_operator, size, p, qubit_matrix, steps, begin_sample)])
+                    for j in range(parr):
+                        qubitlist.update(output[j])
+            else:
+                output = droplet((logical_operator, size, p, qubit_matrix, steps, begin_sample))
+                qubitlist = output
         for key in qubitlist:
             eqdistr[eq] += exp(-beta*qubitlist[key])
+
+        # Add N(n,nx,ny,nz stuff here maybe?) Maybe we save to df as proof och concept?
         qubitlist.clear()
         output.clear()
         gc.collect()

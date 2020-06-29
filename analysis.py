@@ -138,13 +138,13 @@ if __name__ == '__main__':
     for i in range(1):
         steps = 20000 * int((size/5)**4)
         print(i+1, 'steps=', steps)
-        eq = STDC(init_toric.qubit_matrix, size, p_error, steps_in=steps)
+        eq = STDC(init_toric.qubit_matrix, size, p_error, steps=steps, raindrops=1, threads=1)
         print(eq)
     ##means, a, b, = single_temp(init_toric,p_error,100000, 1e-5, burnin=10000)
     #print(means, a, b)
-    eq, _, _ = parallel_tempering(init_toric, 19,
-                                         p=p_error, steps=1000000,
-                                         iters=10,
-                                         conv_criteria='error_based')
-    print(eq)
+    #eq, _, _ = parallel_tempering(init_toric, 19,
+    #                                     p=p_error, steps=1000000,
+    #                                     iters=10,
+    #                                     conv_criteria='error_based')
+    #print(eq)
     #getSTDCstats(init_toric.qubit_matrix, 5, p_error, steps=160000)
