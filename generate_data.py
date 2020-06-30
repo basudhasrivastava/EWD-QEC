@@ -115,7 +115,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
         
-        if (i + 1) % 3 == 0:
+        if (i + 1) % 100 == 0:
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -143,7 +143,7 @@ if __name__ == '__main__':
 
     params = {'code': "planar",
             'method': "all",
-            'size': 9,
+            'size': 3,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': np.round((0.05 + float(array_id) / 50), decimals=2),
             'Nc':19,
@@ -152,7 +152,7 @@ if __name__ == '__main__':
             'SEQ': 7,
             'TOPS': 10,
             'eps': 0.005}
-    params.update({'steps': 10000 * int((params['size'] / 5) ** 4)})
+    params.update({'steps': np.max((10000 * int((params['size'] / 5) ** 4)), 5000)})
 
     print(params['steps'])
 
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=1)
+    generate(file_path, params, nbr_datapoints=10000)
 
     # View data file
     
