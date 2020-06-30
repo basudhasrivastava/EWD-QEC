@@ -71,7 +71,7 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
 # i nuläget kommer "bra eq" att bli straffade eftersom att de inte kommer få chans att generera lika många unika kedjor --bör man sätta något tak? eller bara ta med de kortaste inom varje?
 
 
-def single_temp_direct_sum(init_code, size, p, steps=20000):
+def STDC(init_code, size, p, steps=20000):
     chain = Chain(size, p, copy.deepcopy(init_code))  # this p needs not be the same as p, as it is used to determine how we sample N(n)
     nbr_eq_classes = init_code.nbr_eq_classes
 
@@ -85,7 +85,7 @@ def single_temp_direct_sum(init_code, size, p, steps=20000):
             chain.update_chain(5)
         for _ in range(int(steps*0.2)):
             chain.update_chain(5)
-            qubitlist[eq][chain.code.qubit_matrix.tostring()] = chain.code.count_errors()
+            qubitlist[eq][chain.code.qubit_matrix.tostring()] = np.count_nonzero(chain.code.qubit_matrix)
 
     # --------Determine EC-Distrubution--------
     eqdistr = np.zeros(nbr_eq_classes)
