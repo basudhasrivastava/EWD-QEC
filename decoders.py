@@ -215,15 +215,12 @@ if __name__ == '__main__':
     for i in range(10):
         init_code.generate_random_error(p_error)
         ground_state = init_code.define_equivalence_class()
-        init_code.apply_stabilizers_uniform()
+        init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
         init_qubit = np.copy(init_code.qubit_matrix)
 
-        #init_qubit, mcmc_distr = reader.next()
-        #print(init_qubit)
         print('################ Chain', i+1 , '###################')
-        #print('MCMC distr:', mcmc_distr)
+
         for i in range(tries):
-            #distrs[i] = single_temp_direct_sum(copy.deepcopy(init_code), size=size, p=p_error, steps=steps)
             #print('Try', i+1, ':', distrs[i], 'most_likeley_eq', np.argmax(distrs[i]), 'ground state:', ground_state)
 
             v1, most_likeley_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
