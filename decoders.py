@@ -10,6 +10,7 @@ from src.planar_model import Planar_code
 from src.util import *
 from src.mcmc import *
 import pandas as pd
+import time
 
 from math import log, exp
 from operator import itemgetter
@@ -28,7 +29,7 @@ def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_b
 
     for eq in range(nbr_eq_classes):
         for j in range(max_iters):
-            ladder[eq].update_chain(1)
+            ladder[eq].update_chain(5)
             nbr_errors_chain[eq ,j] = ladder[eq].code.count_errors()
             if not convergence_reached[eq] and j >= burnin:
                 if conv_criteria == 'error_based' and not j % 100:
@@ -36,8 +37,16 @@ def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_b
                     if convergence_reached[eq] == 1:
                         mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
                         break
-
-    return mean_array, convergence_reached
+                #elif conv_criteria == None:
+                    #mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
+                    #continue
+                    #mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
+            if conv_criteria != None and j == max_iters-1:
+                mean_array[eq] = 2*init_code.system_size**2 #not chosen if not converged
+            elif j == max_iters-1:
+                mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
+    most_likeley_eq = np.argmin(mean_array)
+    return mean_array.round(decimals=2), most_likeley_eq, convergence_reached
 
 
 def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i papper
@@ -91,7 +100,7 @@ def single_temp_direct_sum(init_code, size, p, steps=20000):
 
 def single_temp_relative_count(init_code, size, p_error, p_sampling=None, steps=20000):
     nbr_eq_classes = init_code.nbr_eq_classes
-    
+
     p_sampling = p_sampling or p_error
     beta_error = -log((p_error / 3) / (1 - p_error))
     beta_sampling = -log((p_sampling / 3) / (1 - p_sampling))
@@ -180,35 +189,37 @@ def single_temp_relative_count(init_code, size, p_error, p_sampling=None, steps=
 
 
 if __name__ == '__main__':
-    '''
-    init_code = Toric_code(5)
-    p_error = 0.1
-    init_code.generate_random_error(p_error)
-    mean_array, convergence_reached, eq_array_translate = single_temp(init_code, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 100000, conv_criteria = 'error_based')
-    print(eq_array_translate[np.argmin(mean_array)], 'guess')
-    print(convergence_reached)
-    '''
-    size = 5
-    steps = 10000 * int(1 + (size / 5) ** 4)
+    t0 = time.time()
+    size =  17
+    steps = 20000 * int(1 + (size / 5) ** 4)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
-    p_error = 0.15
-    p_sampling = 0.15
+    p_error = 0.2
+    p_sampling = 0.2
     init_code = Planar_code(size)
     tries = 2
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
     mean_tvd = 0.0
     for i in range(10):
         init_code.generate_random_error(p_error)
+        ground_state = init_code.define_equivalence_class()
+        init_code.apply_stabilizers_uniform()
         init_qubit = np.copy(init_code.qubit_matrix)
+
         #init_qubit, mcmc_distr = reader.next()
         #print(init_qubit)
         print('################ Chain', i+1 , '###################')
         #print('MCMC distr:', mcmc_distr)
         for i in range(tries):
             #distrs[i] = single_temp_direct_sum(copy.deepcopy(init_code), size=size, p=p_error, steps=steps)
-            #distrs[i] = single_temp_relative_count(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
-            distrs[i], _ = single_temp(init_code, p=p_error, max_iters=steps, eps=0.05)
-            print('Try', i+1, ':', distrs[i])
+            #print('Try', i+1, ':', distrs[i], 'most_likeley_eq', np.argmax(distrs[i]), 'ground state:', ground_state)
+
+            v1, most_likeley_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
+            print('Try single_temp', i+1, ':', v1, 'most_likeley_eq', most_likeley_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
+            t0 = time.time()
+            distrs[i] = single_temp_direct_sum(copy.deepcopy(init_code), size=size, p=p_error, steps=steps)
+            #distrs[i] = single_temp_direct_sum(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
+            print('Try STDC       ', i+1, ':', distrs[i], 'most_likeley_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
+            t0 = time.time()
 
         tvd = sum(abs(distrs[1]-distrs[0]))
         mean_tvd += tvd
