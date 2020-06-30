@@ -98,7 +98,7 @@ def STDC(init_code, size, p, steps=20000):
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
 
-def single_temp_relative_count(init_code, size, p_error, p_sampling=None, steps=20000):
+def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
     nbr_eq_classes = init_code.nbr_eq_classes
 
     p_sampling = p_sampling or p_error
@@ -195,8 +195,8 @@ def single_temp_relative_count(init_code, size, p_error, p_sampling=None, steps=
 
 if __name__ == '__main__':
     t0 = time.time()
-    size =  17
-    steps = 20000 * int(1 + (size / 5) ** 4)
+    size =  7
+    steps = 10000 * int(1 + (size / 5) ** 4)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
     p_error = 0.2
     p_sampling = 0.2
@@ -219,11 +219,11 @@ if __name__ == '__main__':
             #print('Try', i+1, ':', distrs[i], 'most_likeley_eq', np.argmax(distrs[i]), 'ground state:', ground_state)
 
             v1, most_likeley_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
-            print('Try single_temp', i+1, ':', v1, 'most_likeley_eq', most_likeley_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
+            print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likeley_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = single_temp_direct_sum(copy.deepcopy(init_code), size=size, p=p_error, steps=steps)
-            #distrs[i] = single_temp_direct_sum(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
-            print('Try STDC       ', i+1, ':', distrs[i], 'most_likeley_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
+            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p=p_error, steps=steps)
+            #distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
+            print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
 
         tvd = sum(abs(distrs[1]-distrs[0]))
