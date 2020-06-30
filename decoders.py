@@ -162,15 +162,20 @@ def single_temp_relative_count(init_code, size, p_error, p_sampling=None, steps=
                         # Then reset stats of next shortest chain
                         short_stats[1] = {'n':length, 'N':1}
 
-        # Dict to hold the total occurences and unique chains of each observed length
+        # Calculate Boltzmann factor for eq from observed chain lengths
         shortest = short_stats[0]['n']
         shortest_count = short_stats[0]['N']
+        shortest_fraction = shortest_count / len_counts[shortest]
+
         next_shortest = short_stats[1]['n']
         next_shortest_count = short_stats[1]['N']
-
-        shortest_fraction = shortest_count / len_counts[shortest]
-        next_shortest_fraction = next_shortest_count / len_counts[next_shortest]
-        mean_fraction = 0.5 * (shortest_fraction + next_shortest_fraction * exp(-beta_sampling * (next_shortest - shortest)))
+        
+        if next_shortest != max_length:
+            next_shortest_fraction = next_shortest_count / len_counts[next_shortest]
+            mean_fraction = 0.5 * (shortest_fraction + next_shortest_fraction * exp(-beta_sampling * (next_shortest - shortest)))
+        
+        else:
+            mean_fraction = shortest_fraction
 
         Z_e = sum([m * exp(-beta_sampling * shortest + d_beta * l) for l, m in len_counts.items()]) * mean_fraction
 
