@@ -123,29 +123,16 @@ def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_b
             ladder[eq].code.qubit_matrix = ladder[eq].code.to_class(eq) # apply different logical operator to each chain
 
     nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
-    convergence_reached = np.zeros(nbr_eq_classes)
     mean_array = np.zeros(nbr_eq_classes, dtype=float)
 
     for eq in range(nbr_eq_classes):
         for j in range(max_iters):
             ladder[eq].update_chain(5)
             nbr_errors_chain[eq ,j] = ladder[eq].code.count_errors()
-            if not convergence_reached[eq] and j >= burnin:
-                if conv_criteria == 'error_based' and not j % 100:
-                    convergence_reached[eq] = conv_crit_error_based(nbr_errors_chain[eq, :j], j, eps)
-                    if convergence_reached[eq]:
-                        mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
-                        break
-                #elif conv_criteria == None:
-                    #mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
-                    #continue
-                    #mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
-            if conv_criteria != None and j == max_iters-1:
-                mean_array[eq] = 2*init_code.system_size**2 #not chosen if not converged
-            elif j == max_iters-1:
+            if j == max_iters-1:
                 mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
-    most_likely_eq = np.argmin(mean_array)
-    return mean_array.round(decimals=2), most_likely_eq, convergence_reached
+
+    return mean_array
 
 
 def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i papper
@@ -314,7 +301,7 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
         qubitlist.clear()
 
     # Retrun normalized eq_distr
-    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
+    return (np.divide(eqdistr, sum(eqdistr)) * 100)
 
 
 def PTRC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, steps=20000, conv_crit=True):
@@ -630,8 +617,7 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
         Z_e = sum([m * exp(-beta_sampling * shortest + d_beta * l) for l, m in len_counts.items()]) * mean_fraction
         Z_arr[eq] = Z_e
 
-    # Use boltzmann factors as relative probabilities and normalize distribution
-    return (Z_arr / np.sum(Z_arr) * 100).astype(dtype=np.uint8)
+    return (Z_arr / np.sum(Z_arr) * 100)
 
 
 if __name__ == '__main__':
