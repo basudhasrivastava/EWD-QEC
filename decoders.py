@@ -71,30 +71,38 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
 # i nuläget kommer "bra eq" att bli straffade eftersom att de inte kommer få chans att generera lika många unika kedjor --bör man sätta något tak? eller bara ta med de kortaste inom varje?
 
 
-def STDC(init_code, size, p, steps=20000):
-    chain = Chain(size, p, copy.deepcopy(init_code))  # this p needs not be the same as p, as it is used to determine how we sample N(n)
+def STDC(init_code, size, p_error, p_sampling, steps=20000):
+    # Create chain with p_sampling, this is allowed since N(n) is independet of p.
+    chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+
+    # this is either 4 or 16, depending on what type of code is used.
     nbr_eq_classes = init_code.nbr_eq_classes
 
-    qubitlist = [{} for _ in range(nbr_eq_classes)]
+    # this is where we save all samples in a dict, to find the unique ones.
+    qubitlist = {}
 
-    for eq in range(nbr_eq_classes):
-        #chain.code.qubit_matrix = apply_logical_operator(qubit_matrix, i)  # apply different logical operator to each chain
-        chain.code.qubit_matrix = init_code.to_class(eq)
-        # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
-        for _ in range(int(steps*0.8)):
-            chain.update_chain(5)
-        for _ in range(int(steps*0.2)):
-            chain.update_chain(5)
-            qubitlist[eq][chain.code.qubit_matrix.tostring()] = np.count_nonzero(chain.code.qubit_matrix)
-
-    # --------Determine EC-Distrubution--------
+    # Z_E will be saved in eqdistr
     eqdistr = np.zeros(nbr_eq_classes)
-    beta = -log((p / 3) / (1-p))
+
+    # error-model
+    beta = -log((p_error / 3) / (1 - p_error))
 
     for eq in range(nbr_eq_classes):
-        for key in qubitlist[eq]:
-            eqdistr[eq] += exp(-beta * qubitlist[eq][key])
+        # go to class eq and apply stabilizers
+        chain.code.qubit_matrix = init_code.to_class(eq)
+        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
 
+        for _ in range(steps):
+            chain.update_chain(5)
+            # add to dict (only gets added if it is new)
+            qubitlist[chain.code.qubit_matrix.tostring()] = np.count_nonzero(chain.code.qubit_matrix)
+
+        # compute Z_E        
+        for key in qubitlist:
+            eqdistr[eq] += exp(-beta * qubitlist[key])
+        qubitlist.clear()
+
+    # Retrun normalized eq_distr
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
 
