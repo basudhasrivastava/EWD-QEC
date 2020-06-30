@@ -49,8 +49,8 @@ class Planar_code():
         return _apply_random_stabilizer(self.qubit_matrix)
 
 
-    def apply_stabilizers_uniform(self):
-        pass
+    def apply_stabilizers_uniform(self, p=0.5):
+        return _apply_stabilizers_uniform(self.qubit_matrix, p)
 
 
     def define_equivalence_class(self):
@@ -356,6 +356,29 @@ def _apply_stabilizer(qubit_matrix, row=int, col=int, operator=int):
             error_count += 1
 
     return result_qubit_matrix, error_count
+
+def _apply_stabilizers_uniform(qubit_matrix, p=0.5):
+    size = qubit_matrix.shape[1]
+    result_qubit_matrix = np.copy(qubit_matrix)
+    random_stabilizers = np.random.rand(2, size, size)
+    random_stabilizers = np.less(random_stabilizers, p)
+
+    # Remove stabilizers from illegal positions
+    #x-operators at bottom
+    random_stabilizers[1,size-1,:] = 0
+    #z-operators at right edge
+    random_stabilizers[0,:,size-1] = 0
+
+    # Numpy magic for iterating through matrix
+    it = np.nditer(random_stabilizers, flags=['multi_index'])
+    while not it.finished:
+        if it[0]:
+            op, row, col = it.multi_index
+            if op == 0:
+                op = 3
+            result_qubit_matrix, _ = _apply_stabilizer(result_qubit_matrix, row, col, op)
+        it.iternext()
+    return result_qubit_matrix
 
 
 @jit(nopython=True)
