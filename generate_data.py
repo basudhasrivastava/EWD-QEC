@@ -7,16 +7,21 @@ import numpy as np
 import pandas as pd
 
 from src.toric_model import Toric_code
+from src.planar_model import Planar_code
 from src.mcmc import *
-from decoders import single_temp_direct_sum, single_temp
+from decoders import *
 
 
 # This function generates training data with help of the MCMC algorithm
-def generate(file_path, params, timeout,
-             max_capacity=10**4, nbr_datapoints=10**6, method="PTEC"):
+def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
 
-    t_start = time.time()  # Initiates timing of run
-
+    if params['code'] == 'planar':
+        nbr_eq_class = 4
+    elif params['code'] == 'toric':
+        nbr_eq_class = 16
+    
+    if params['method'] == "all":
+        nbr_eq_class *= 3
     # Creates data file if there is none otherwise adds to it
     try:
         df = pd.read_pickle(file_path)
@@ -39,42 +44,53 @@ def generate(file_path, params, timeout,
 
     # Loop to generate data points
     for i in np.arange(nbr_to_generate) + nbr_existing_data:
-
-        # Breaks if run has exceeded timeout-value
-        if time.time() - t_start > timeout:
-            print("timeout reached: " + str(timeout) + "s")
-            break
-
         print('Starting generation of point nr: ' + str(i + 1))
 
-        # Initiate toric
-        init_toric = Toric_code(params['size'])
-        init_toric.generate_random_error(params['p'])
-
+        # Initiate code
+        if params['code'] == 'toric':
+            init_code = Toric_code(params['size'])
+            init_code.generate_random_error(params['p_error'])
+        elif params['code'] == 'planar':
+            init_code = Planar_code(params['size'])
+            init_code.generate_random_error(params['p_error'])
         #randomize input matrix, no trace of seed.
-        input_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
-        input_matrix = apply_stabilizers_uniform(input_matrix) # fix so all uses these
+        init_code.qubit_matrix, _ = init_code.apply_random_logical()
+
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
-        if method == "PTEC":
-            df_eq_distr, _, _ = parallel_tempering(init_toric, params['Nc'],
-                                         p=params['p'], steps=params['steps'],
+        if params['method'] == "PTEC":
+            df_eq_distr, _, _ = parallel_tempering(init_code, params['Nc'],
+                                         p=params['p_error'], steps=params['steps'],
                                          iters=params['iters'],
                                          conv_criteria=params['conv_criteria'])
-        elif method == "STDC":
-            df_eq_distr = single_temp_direct_sum(input_matrix,params['size'],params['p'])
+        elif params['method'] == "STDC":
+            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            df_eq_distr = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'])
             df_eq_distr = np.array(df_eq_distr)
-        elif method == "ST":
-            df_eq_distr = single_temp(init_toric,params['p'],params['steps'], params['eps'])
+        elif params['method'] == "ST":
+            df_eq_distr = single_temp(init_code, params['p_error'],params['steps'])
             df_eq_distr = np.array(df_eq_distr)
-        else:
-            raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
+        elif params['method'] == "STRC":
+            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            df_eq_distr = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'])
+            df_eq_distr = np.array(df_eq_distr)
+        elif params['method'] == "all":
+            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            df_eq_distr1 = single_temp(init_code, params['p_error'],params['steps'])
+
+            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            df_eq_distr2 = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'])
+
+            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            df_eq_distr3 = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'])
+
+            df_eq_distr = np.concatenate((df_eq_distr1,df_eq_distr2,df_eq_distr3), axis=0)
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         
 
         # Flatten initial qubit matrix to store in dataframe
-        df_qubit = init_toric.qubit_matrix.reshape((-1))
+        df_qubit = init_code.qubit_matrix.reshape((-1))
 
         # Create indices for generated data
         names = ['data_nr', 'layer', 'x', 'y']
@@ -82,13 +98,13 @@ def generate(file_path, params, timeout,
                                                  np.arange(params['size']),
                                                  np.arange(params['size'])],
                                                  names=names)
-        index_distr = pd.MultiIndex.from_product([[i], np.arange(16)+2, [0],
+        index_distr = pd.MultiIndex.from_product([[i], np.arange(nbr_eq_class)+2, [0],
                                                  [0]], names=names)
 
         # Add data to Dataframes
         df_qubit = pd.DataFrame(df_qubit.astype(np.uint8), index=index_qubit,
                                 columns=['data'])
-        df_distr = pd.DataFrame(df_eq_distr.astype(np.uint8),  # dtype for eq_distr? want uint16
+        df_distr = pd.DataFrame(df_eq_distr,
                                 index=index_distr, columns=['data'])
 
         # Add dataframes to temporary list to shorten computation time
@@ -115,35 +131,36 @@ def generate(file_path, params, timeout,
 
 
 if __name__ == '__main__':
-    # All paramteters for data generation is set here,
-    # some of which may be irrelevant depending on the choice of others
-    t_start = time.time()
-    params = {'size': 5,
-              'p': 0.185,
-              'Nc': 9,
-              'steps': 500000,
-              'iters': 10,
-              'conv_criteria': 'error_based',
-              'SEQ': 7,
-              'TOPS': 10,
-              'eps': 0.005}
 
     # Get job array id, set working directory, set timer
     try:
         array_id = str(sys.argv[1])
         local_dir = str(sys.argv[2])
-        timeout = int(sys.argv[3])
     except:
         array_id = '0'
         local_dir = '.'
-        timeout = 100000000000
         print('invalid sysargs')
 
+    params = {'code': "planar",
+            'method': "all",
+            'size': 9,
+            'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
+            'p_sampling': np.round((0.05 + float(array_id) / 50), decimals=2),
+            'Nc':19,
+            'iters': 10,
+            'conv_criteria': 'error_based',
+            'SEQ': 7,
+            'TOPS': 10,
+            'eps': 0.005}
+    params.update({'steps': 10000 * int((params['size'] / 5) ** 4)})
+
+    print(params['steps'])
+
     # Build file path
-    file_path = os.path.join(local_dir, 'data_' + array_id + '.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
 
     # Generate data
-    generate(file_path, params, timeout, method="ST")
+    generate(file_path, params, nbr_datapoints=1)
 
     # View data file
     

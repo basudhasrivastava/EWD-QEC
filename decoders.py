@@ -15,12 +15,11 @@ import time
 from math import log, exp
 from operator import itemgetter
 
-def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_based'):
+def single_temp(init_code, p, max_iters):
     nbr_eq_classes = init_code.nbr_eq_classes
     ground_state = init_code.define_equivalence_class()
     ladder = [] # list of chain objects
     nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
-    convergence_reached = np.zeros(nbr_eq_classes)
     mean_array = np.zeros(nbr_eq_classes, dtype=float)
 
     for eq in range(nbr_eq_classes):
@@ -31,22 +30,10 @@ def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_b
         for j in range(max_iters):
             ladder[eq].update_chain(5)
             nbr_errors_chain[eq ,j] = ladder[eq].code.count_errors()
-            if not convergence_reached[eq] and j >= burnin:
-                if conv_criteria == 'error_based' and not j % 100:
-                    convergence_reached[eq] = conv_crit_error_based(nbr_errors_chain[eq, :j], j, eps)
-                    if convergence_reached[eq] == 1:
-                        mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
-                        break
-                #elif conv_criteria == None:
-                    #mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
-                    #continue
-                    #mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
-            if conv_criteria != None and j == max_iters-1:
-                mean_array[eq] = 2*init_code.system_size**2 #not chosen if not converged
-            elif j == max_iters-1:
+            if j == max_iters-1:
                 mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
-    most_likeley_eq = np.argmin(mean_array)
-    return mean_array.round(decimals=2), most_likeley_eq, convergence_reached
+
+    return mean_array
 
 
 def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i papper
@@ -103,7 +90,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
         qubitlist.clear()
 
     # Retrun normalized eq_distr
-    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
+    return (np.divide(eqdistr, sum(eqdistr)) * 100)
 
 
 def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
@@ -198,7 +185,7 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
 
         Z_arr[eq] = Z_e
 
-    return (Z_arr / np.sum(Z_arr) * 100).astype(dtype=int)
+    return (Z_arr / np.sum(Z_arr) * 100)
 
 
 if __name__ == '__main__':
