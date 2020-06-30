@@ -52,27 +52,11 @@ class Planar_code():
 
 
     def define_equivalence_class(self):
-        # of x errors in the first coulum
-        x_errors = np.count_nonzero(self.qubit_matrix[0,:,0]==1)
-        x_errors += np.count_nonzero(self.qubit_matrix[0,:,0]==2)
-
-        # of z errors in the first row
-        z_errors = np.count_nonzero(self.qubit_matrix[0,0,:]==3)
-        z_errors += np.count_nonzero(self.qubit_matrix[0,0,:]==2)
-
-        # return the parity of the calculated #'s of errors
-        return (x_errors % 2) + 2 * (z_errors % 2)
+        return _define_equivalence_class(self.qubit_matrix)
 
 
     def to_class(self, eq=int): # apply_logical_operators i decoders.py
-        diff = eq ^ self.define_equivalence_class()
-        mask = 0b10
-        xor = (mask & diff) >> 1
-        op = diff ^ xor
-
-        qubit_matrix, _ = self.apply_logical(operator=op, X_pos=0, Z_pos=0)
-
-        return qubit_matrix
+        return _to_class(eq, self.qubit_matrix)
 
 
     def syndrom(self):
@@ -161,6 +145,11 @@ class Planar_code():
         plt.close()
 
 
+@njit
+def _count_errors(qubit_matrix):
+    return np.count_nonzero(qubit_matrix)
+
+
 # At the moment numba is limited in compiling classes
 # So some class functions above are simply wrappers of the compiled functions below
 @njit
@@ -196,7 +185,7 @@ def _apply_logical(qubit_matrix, operator=int, X_pos=0, Z_pos=0):
             error_count += qubit_update(X_pos, i, 1)
         if do_Z:
             error_count += qubit_update(i, Z_pos, 3)
-    
+
     return result_qubit_matrix, error_count
 
 
@@ -218,17 +207,6 @@ def _apply_random_logical(qubit_matrix):
         Z_pos = 0
 
     return _apply_logical(qubit_matrix, op, X_pos, Z_pos)
-
-
-@njit
-def _apply_random_stabilizer(qubit_matrix):
-    size = qubit_matrix.shape[1]
-    if rand.random() < 0.5:
-        # operator = 1 = x
-        return _apply_stabilizer(qubit_matrix,rand.randint(0,size-2),rand.randint(0,size-1),1)
-    else: 
-        # operator = 3 = z
-        return _apply_stabilizer(qubit_matrix,rand.randint(0,size-1),rand.randint(0,size-2),3)
 
 
 @njit
@@ -280,6 +258,18 @@ def _apply_stabilizer(qubit_matrix, row=int, col=int, operator=int):
 
     return result_qubit_matrix, error_count
 
+
+@njit
+def _apply_random_stabilizer(qubit_matrix):
+    size = qubit_matrix.shape[1]
+    if rand.random() < 0.5:
+        # operator = 1 = x
+        return _apply_stabilizer(qubit_matrix,rand.randint(0,size-2),rand.randint(0,size-1),1)
+    else: 
+        # operator = 3 = z
+        return _apply_stabilizer(qubit_matrix,rand.randint(0,size-1),rand.randint(0,size-2),3)
+
+
 def _apply_stabilizers_uniform(qubit_matrix, p=0.5):
     size = qubit_matrix.shape[1]
     result_qubit_matrix = np.copy(qubit_matrix)
@@ -304,6 +294,34 @@ def _apply_stabilizers_uniform(qubit_matrix, p=0.5):
     return result_qubit_matrix
 
 
-@jit(nopython=True)
-def _count_errors(qubit_matrix): # Kolla så inte fel
-    return np.count_nonzero(qubit_matrix)
+@njit
+def _define_equivalence_class(qubit_matrix):
+    # of x errors in the first column
+    x_errors = np.count_nonzero(qubit_matrix[0,:,0]==1)
+    x_errors += np.count_nonzero(qubit_matrix[0,:,0]==2)
+
+    # of z errors in the first row
+    z_errors = np.count_nonzero(qubit_matrix[0,0,:]==3)
+    z_errors += np.count_nonzero(qubit_matrix[0,0,:]==2)
+
+    # return the parity of the calculated #'s of errors
+    return (x_errors % 2) + 2 * (z_errors % 2)
+
+
+@njit
+def _to_class(eq, qubit_matrix):
+    # Returns an error chain with same syndrom as qubit_matrix, but in the class eq
+    # eq is interpreted as a 2-digit binary number (z x)
+    # xor target class with current class, to calculate what operators "connect" them
+    diff = eq ^ _define_equivalence_class(qubit_matrix)
+
+    # These lines flip x if z==1
+    # This converts a 2-bit eq-class into a 2-bit operator
+    mask = 0b10
+    xor = (mask & diff) >> 1
+    op = diff ^ xor
+
+    # Apply the operator
+    qubit_matrix, _ = _apply_logical(qubit_matrix, operator=op, X_pos=0, Z_pos=0)
+
+    return qubit_matrix

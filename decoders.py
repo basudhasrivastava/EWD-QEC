@@ -71,7 +71,10 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
 # i nuläget kommer "bra eq" att bli straffade eftersom att de inte kommer få chans att generera lika många unika kedjor --bör man sätta något tak? eller bara ta med de kortaste inom varje?
 
 
-def STDC(init_code, size, p_error, p_sampling, steps=20000):
+def STDC(init_code, size, p_error, p_sampling=None, steps=20000):
+    # set p_sampling equal to p_error by default
+    p_sampling = p_sampling or p_error
+
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
     chain = Chain(size, p_sampling, copy.deepcopy(init_code))
 
@@ -107,20 +110,27 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
 
 
 def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
+    # set p_sampling equal to p_error by default
+    p_sampling = p_sampling or p_error
+
+    # Create chain with p_sampling, this is allowed since N(n) is independet of p.
+    chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+
+    # Either 4 or 16, depending on type of code
     nbr_eq_classes = init_code.nbr_eq_classes
 
-    p_sampling = p_sampling or p_error
+    # error model
     beta_error = -log((p_error / 3) / (1 - p_error))
     beta_sampling = -log((p_sampling / 3) / (1 - p_sampling))
     d_beta = beta_sampling - beta_error
 
+    # Array to hold the boltzmann factors for every class
     Z_arr = np.zeros(nbr_eq_classes)
+
+    # Largest possible chain length
     max_length = 2 * size ** 2
 
-    samples = int(0.9 * steps)
-
-    chain = Chain(size, p_sampling, copy.deepcopy(init_code))  # this p needs not be the same as p, as it is used to determine how we sample N(n)
-
+    # Iterate through equivalence classes
     for eq in range(nbr_eq_classes):
         unique_lengths = {}
         len_counts = {}
@@ -131,14 +141,15 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
         # Apply logical operators to get qubit_matrix into equivalence class i
         chain.code.qubit_matrix = chain.code.to_class(eq)
 
-        for _ in range(steps - samples):
-            chain.update_chain(5)
-        for step in range(samples):
+        # Generate chains
+        for step in range(steps):
+            # Do metropolis sampling
             chain.update_chain(5)
 
+            # Convert the current qubit matrix to string for hashing
             key = chain.code.qubit_matrix.tostring()
 
-            # Check if this error chain has already been seen
+            # Check if this error chain has already been seen by comparing hashes
             if key in unique_lengths:
                 # Increment counter for chains of this length
                 len_counts[unique_lengths[key]] += 1
@@ -179,7 +190,7 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
                         # Then reset stats of next shortest chain
                         short_stats[1] = {'n':length, 'N':1}
 
-        # Calculate Boltzmann factor for eq from observed chain lengths
+        # Partial result needed for boltzmann factor
         shortest = short_stats[0]['n']
         shortest_count = short_stats[0]['N']
         shortest_fraction = shortest_count / len_counts[shortest]
@@ -187,6 +198,7 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
         next_shortest = short_stats[1]['n']
         next_shortest_count = short_stats[1]['N']
         
+        # Handle rare cases where only one chain length is observed
         if next_shortest != max_length:
             next_shortest_fraction = next_shortest_count / len_counts[next_shortest]
             mean_fraction = 0.5 * (shortest_fraction + next_shortest_fraction * exp(-beta_sampling * (next_shortest - shortest)))
@@ -194,10 +206,11 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
         else:
             mean_fraction = shortest_fraction
 
+        # Calculate boltzmann factor from observed chain lengths
         Z_e = sum([m * exp(-beta_sampling * shortest + d_beta * l) for l, m in len_counts.items()]) * mean_fraction
-
         Z_arr[eq] = Z_e
 
+    # Use boltzmann factors as relative probabilities and normalize distribution
     return (Z_arr / np.sum(Z_arr) * 100).astype(dtype=int)
 
 
@@ -206,8 +219,8 @@ if __name__ == '__main__':
     size =  7
     steps = 10000 * int(1 + (size / 5) ** 4)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
-    p_error = 0.2
-    p_sampling = 0.2
+    p_error = 0.15
+    p_sampling = 0.15
     init_code = Planar_code(size)
     tries = 2
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
@@ -223,10 +236,10 @@ if __name__ == '__main__':
         for i in range(tries):
             #print('Try', i+1, ':', distrs[i], 'most_likeley_eq', np.argmax(distrs[i]), 'ground state:', ground_state)
 
-            v1, most_likeley_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
-            print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likeley_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
+            v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
+            print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p=p_error, steps=steps)
+            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, steps=steps)
             #distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
