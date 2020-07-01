@@ -68,6 +68,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
             df_eq_distr = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'])
             df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "ST":
+            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr = single_temp(init_code, params['p_error'],params['steps'])
             df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "STRC":
@@ -152,7 +153,7 @@ if __name__ == '__main__':
             'SEQ': 7,
             'TOPS': 10,
             'eps': 0.005}
-    params.update({'steps': np.max((10000 * int((params['size'] / 5) ** 4)), 5000)})
+    params.update({'steps': np.amax([10000 * int((params['size'] / 5) ** 4), 1300])})
 
     print(params['steps'])
 
