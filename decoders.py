@@ -127,7 +127,9 @@ def STDC(qubit_matrix, size, p, steps, begin_sample=0.5, raindrops=1, threads=1)
         qubitlist.clear()
         output.clear()
         gc.collect()'''
-def STDC(init_code, size, p_error, p_sampling=None, steps=20000):
+
+
+def STDC(init_code, size, p_error, p_sampling=None, droplets=1, steps=20000):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
 
@@ -149,12 +151,13 @@ def STDC(init_code, size, p_error, p_sampling=None, steps=20000):
     for eq in range(nbr_eq_classes):
         # go to class eq and apply stabilizers
         chain.code.qubit_matrix = init_code.to_class(eq)
-        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
 
-        for _ in range(steps):
-            chain.update_chain(5)
-            # add to dict (only gets added if it is new)
-            qubitlist[chain.code.qubit_matrix.tostring()] = np.count_nonzero(chain.code.qubit_matrix)
+        for _ in range(droplets): # this loop can be done in parallel
+            chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+            for _ in range(steps):
+                chain.update_chain(5)
+                # add to dict (only gets added if it is new)
+                qubitlist[chain.code.qubit_matrix.tostring()] = np.count_nonzero(chain.code.qubit_matrix)
 
         # compute Z_E        
         for key in qubitlist:
