@@ -53,6 +53,11 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
         elif params['code'] == 'planar':
             init_code = Planar_code(params['size'])
             init_code.generate_random_error(params['p_error'])
+ 
+        # Flatten initial qubit matrix to store in dataframe
+        df_qubit = copy.deepcopy(init_code.qubit_matrix.reshape((-1)))
+
+
         #randomize input matrix, no trace of seed.
         init_code.qubit_matrix, _ = init_code.apply_random_logical()
 
@@ -89,9 +94,6 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         
-
-        # Flatten initial qubit matrix to store in dataframe
-        df_qubit = init_code.qubit_matrix.reshape((-1))
 
         # Create indices for generated data
         names = ['data_nr', 'layer', 'x', 'y']
