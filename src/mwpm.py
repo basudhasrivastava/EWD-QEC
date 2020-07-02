@@ -18,6 +18,7 @@ class MWPM():
         self.code = code
         self.is_planar = (type(code) == Planar_code)
 
+    #KLAR
     def get_shortest_distance(self, defect1, defect2):
         # Planar_code only cares about direct path
         if self.is_planar:
@@ -33,6 +34,7 @@ class MWPM():
             # Total minimum distance
             return shortest_path.sum()
 
+    #KLAR
     def generate_MWPM(self, layer):
         # get defects in layer
         # planar has different names for different layers
@@ -82,7 +84,7 @@ class MWPM():
 
         return MWPM_edges, edges, defect_coords
 
-
+    #KLAR
     # generates an array of distinct node pairs and stores in edges[]
     def generate_node_indices(self, layer):
         # get defects in layer
@@ -152,7 +154,7 @@ class MWPM():
 
         return edges
 
-
+    #KLAR
     def eliminate_defect_pair(self, start_coord, end_coord, layer):
         diff_coord = end_coord - start_coord
         system_size = self.code.system_size
@@ -179,55 +181,74 @@ class MWPM():
         # HIT KOM JAG INNAN TIDEN TOG SLUT
         top, bot = sorted([start_coord[0], end_coord[0]])
         left, right = sorted([start_coord[1], end_coord[1]])
-        #vertical
-        correction[layer, top:bot, left]
 
-        # iterate through vertical steps
-        for i in range(nbr_vertical_steps):
-            # choose direction around torus
-            direction = size_diff[0]>np.abs(diff_coord[0])
-            # calculate qubit coordinates to apply correction
-            start_coord[0] = (start_coord[0] + direction-(not layer))%system_size
-            # store qubit coordinates
-            pos = [layer, start_coord[0], start_coord[1]]
-            # update coordinate of defect
-            start_coord[0] = (start_coord[0] - (not direction)+(not layer))%system_size
-
-            # apply correction on torus
-            action = Action(pos, operator)
-            toric_code.step(action)
-            toric_code.syndrom('state')
-
-        # iterate through horizontal steps
-        for i in range(nbr_horizontal_steps):
-            # calculate coordinates of qubit to apply correction
-            # and update coordinate of defect
-            if (diff_coord[1] < 0):
-                direction = size_diff[1]<np.abs(diff_coord[1])
-                start_coord[1] = (start_coord[1] + (direction)-(not layer))%system_size
-                pos = [int(not layer), start_coord[0], start_coord[1]]
-                start_coord[1] = (start_coord[1] - (not direction))+(not layer)%system_size
-            else:
-                direction = size_diff[1]>np.abs(diff_coord[1])
-                start_coord[1] = (start_coord[1] + (direction)-(not layer))%system_size
-                pos = [int(not layer), start_coord[0], start_coord[1]]
-                start_coord[1] = (start_coord[1] - (not direction)+(not layer))%system_size
-
-            # apply correction on torus
-            action = Action(pos, operator)
-            toric_code.step(action)
-            toric_code.syndrom('state')
+        if self.is_planar:
+            # vertical. '+ not layer' offsets z qubit vertical position in relation to z defect
+            vert = [i + (not layer) for i in range(top, bot)]
+            correction[layer, vert, start_coord[1]] = operator
+            # horizontal. '+ layer' offsets x qubit horizontal position in relation to x defect
+            horiz = [i + layer for i in range(left, right)]
+            correction[not layer, end_coord[0], horiz] = operator
         
-        # return corrected torus
+        else:
+            # for toric the offsets are different and are only needed for x qubits
+            # vertical. check if periodic distance is shorter
+            if (bot - top) * 2 > system_size:
+                # list of qubits connecting defects to periodic borders
+                vert = [i for i in range(0, top + layer)]
+                vert += [i for i in range(bot + layer, system_size)]
+            else:
+                # list of qubit directly connecting defect pair
+                vert = [i + layer for i in range(top, bot)]
+            correction[layer, vert, start_coord[1]] = operator
+
+            # horizontal. check if periodic distance is shorter
+            if (right - left) * 2 > system_size:
+                # list of qubits connecting defects to periodic borders
+                horiz = [i + layer for i in range(0, left)]
+                horiz += [i + layer for i in range(right, system_size)]
+            else:
+                # list of qubit directly connecting defect pair
+                horiz = [i + layer for i in range(left, right)]
+            correction[not layer, end_coord[0], horiz] = operator
+
+        # Apply correction
+        self.code.qubit_matrix ^= correction
+
+        if self.is_planar:
+            self.code.syndrom()
+        else:
+            self.code.syndrom('state')
+        
+        # The toric/plane is corrected, no need to return anything
+        return
+
+    # !!!!!!!! ENDAST DENNA KVAR !!!!!!!!!
+    # eliminate_defect_pair ska hantera alla parning av defekter pa ytan
+    # Det aterstar att upptacka och hantera nar ytdefekter paras till ancilla defekter
+    # Sen ar det saklart bugfixande kvar
+    # given torus and defect pairs, this applies a correction connecting the pairs
+    def generate_solution(MWPM_edges, defect_coords, toric_code, matrix_index, system_size):
+        # coordinates of pairs to connect
+        start_coords = defect_coords[MWPM_edges[:, 0].T, :]
+        end_coords = defect_coords[MWPM_edges[:, 1].T, :]
+
+        # if there are defects on the torus
+        if (np.sum(np.sum(toric_code.current_state[matrix_index])) > 0):
+            # iterate through all the mwpm defect pairs
+            for start_coord, end_coord in zip(start_coords, end_coords):
+                # eliminate the current pair
+                toric_code = eliminate_defect_pair(toric_code, start_coord, end_coord, matrix_index, system_size)
         return toric_code
 
+#KLAR
 # non periodic manhattan distance between defect at coord1 and coord2
 def manhattan_path(defect1, defect2):
     x_distance = np.abs(defect1[0] - defect2[0])
     y_distance = np.abs(defect1[1] - defect2[1])
     return np.array([x_distance, y_distance])
 
-
+#KLAR
 def connect_all(nbr_nodes, index_offset=0):
     # list of lists where every node's index is repeated for every connection it 'starts'
     start = [[i + index_offset] * (nbr_nodes - i - 1) for i in range(nbr_nodes)]
@@ -236,20 +257,7 @@ def connect_all(nbr_nodes, index_offset=0):
 
     return start, end
 
-# given torus and defect pairs, this applies a correction connecting the pairs
-def generate_solution(MWPM_edges, defect_coords, toric_code, matrix_index, system_size):
-    # coordinates of pairs to connect
-    start_coords = defect_coords[MWPM_edges[:, 0].T, :]
-    end_coords = defect_coords[MWPM_edges[:, 1].T, :]
-
-    # if there are defects on the torus
-    if (np.sum(np.sum(toric_code.current_state[matrix_index])) > 0):
-        # iterate through all the mwpm defect pairs
-        for start_coord, end_coord in zip(start_coords, end_coords):
-            # eliminate the current pair
-            toric_code = eliminate_defect_pair(toric_code, start_coord, end_coord, matrix_index, system_size)
-    return toric_code
-
+#SKA ANTAGLIGEN INTE ANVANDAS
 def main(args):
     #TODO: add support for arguments
     # parser = argparse.ArgumentParser()
