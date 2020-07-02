@@ -137,8 +137,10 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
         # List where first (last) element is stats of shortest (next shortest) length
         # n is length of chain. N is number of unique chains of this length
         short_stats = [{'n':max_length, 'N':0} for _ in range(2)]
-        chain.code = init_code
-        # Apply logical operators to get qubit_matrix into equivalence class i
+        
+        # Apply random stabilizers to start in high temperature state
+        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+        # Apply logical operators to get qubit_matrix into equivalence class eq
         chain.code.qubit_matrix = chain.code.to_class(eq)
 
         # Generate chains
