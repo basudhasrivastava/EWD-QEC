@@ -129,6 +129,18 @@ def STDC(qubit_matrix, size, p, steps, begin_sample=0.5, raindrops=1, threads=1)
         gc.collect()'''
 
 
+def STDC_droplet(input_data_tuple):
+    samples = {}
+    chain, steps = input_data_tuple
+
+    chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+
+    for _ in range(int(steps)):
+        chain.update_chain(5)
+        samples[chain.code.qubit_matrix.astype(np.uint8).tostring()] = chain.code.count_errors()
+    return samples
+
+
 def STDC(init_code, size, p_error, p_sampling=None, droplets=1, steps=20000):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
@@ -152,12 +164,10 @@ def STDC(init_code, size, p_error, p_sampling=None, droplets=1, steps=20000):
         # go to class eq and apply stabilizers
         chain.code.qubit_matrix = init_code.to_class(eq)
 
-        for _ in range(droplets): # this loop can be done in parallel
-            chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
-            for _ in range(steps):
-                chain.update_chain(5)
-                # add to dict (only gets added if it is new)
-                qubitlist[chain.code.qubit_matrix.tostring()] = np.count_nonzero(chain.code.qubit_matrix)
+        with Pool(droplets) as pool:
+            output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps) for _ in range(droplets)])
+            for j in range(droplets):
+                qubitlist.update(output[j])
 
         # compute Z_E        
         for key in qubitlist:
@@ -295,8 +305,8 @@ if __name__ == '__main__':
         for i in range(tries):
             #print('Try', i+1, ':', distrs[i], 'most_likeley_eq', np.argmax(distrs[i]), 'ground state:', ground_state)
 
-            v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
-            print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
+            #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
+            #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
             distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, steps=steps)
             #distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
