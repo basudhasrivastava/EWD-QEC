@@ -127,6 +127,8 @@ def STRC_droplet(input_data_tuple):
 
     # List of unique shortest and next shortets chains
     short_unique = [{} for _ in range(2)]
+    short_unique[0]['temp'] = max_length
+    short_unique[1]['temp'] = max_length
 
     # Variables to easily keep track of the length of chains in short_unique
     shortest = max_length
