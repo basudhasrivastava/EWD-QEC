@@ -63,11 +63,8 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
 
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
-        if params['method'] == "PTEC":
-            df_eq_distr, _, _ = parallel_tempering(init_code, params['Nc'],
-                                         p=params['p_error'], steps=params['steps'],
-                                         iters=params['iters'],
-                                         conv_criteria=params['conv_criteria'])
+        if params['method'] == "PTEQ":
+            df_eq_distr = PTEQ(init_code, params['p_error'])
         elif params['method'] == "STDC":
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'])
@@ -145,7 +142,7 @@ if __name__ == '__main__':
         print('invalid sysargs')
 
     params = {'code': "planar",
-            'method': "all",
+            'method': "PTEQ",
             'size': 3,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': np.round((0.05 + float(array_id) / 50), decimals=2),
