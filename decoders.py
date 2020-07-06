@@ -114,7 +114,8 @@ def STRC_droplet(input_data_tuple):
 
     # List of unique shortest and next shortets chains
     short_unique = [{} for _ in range(2)]
-
+    short_unique[0]['temp'] = max_length
+    short_unique[0]['temp'] = max_length
     # Variables to easily keep track of the length of chains in short_unique
     shortest = max_length
     next_shortest = max_length
@@ -128,7 +129,7 @@ def STRC_droplet(input_data_tuple):
     for step in range(steps):
         # Do metropolis sampling
         chain.update_chain(5)
-
+        #print(len(short_unique[1]))
         # Convert the current qubit matrix to string for hashing
         key = chain.code.qubit_matrix.tostring()
 
@@ -139,6 +140,8 @@ def STRC_droplet(input_data_tuple):
 
         # If this chain is new, add it to dictionary of unique chains
         else:
+            #print('\nfound new chain')
+            #print('len before new len found:', len(short_unique[1]))
             # Calculate length of this chain
             length = chain.code.count_errors()
             # Store number of observations and length of this chain
@@ -159,29 +162,35 @@ def STRC_droplet(input_data_tuple):
                     short_unique[1][key] = length
 
             else:
+                #print('it has a new length!')
                 # Initiate counter for chains of this length
                 len_counts[unique_lengths[key]] = 1
                 # Check if this chain is shorter than prevous shortest chain
                 if length < shortest:
+                    #print('Found new shortest chain')
                     # Then the previous shortest length is the new next shortest
                     next_shortest = shortest
                     shortest = length
                     
+                    #print('before update:', len(short_unique[1]))
                     # Clear next shortest set and set i equal to shortest
                     short_unique[1].clear()
                     short_unique[1].update(short_unique[0])
+                    #print('after update:', len(short_unique[1]))
                     # And the current length is the new shortest
                     short_unique[0].clear()
                     short_unique[0][key] = length
                 
                 # Otherwise, check if this chain is shorter than previous next shortest chain
                 elif length < next_shortest:
+                    #print('Found new next shortest chain!')
                     # Then reset stats of next shortest chain
                     next_shortest = length
 
                     # Clear and update next shortest set
                     short_unique[1].clear()
                     short_unique[1][key] = length
+            #print('len(1) after new chain found:', len(short_unique[1]))
 
     return unique_lengths, len_counts, short_unique
 

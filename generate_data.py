@@ -85,7 +85,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
             df_eq_distr1 = single_temp(init_code, params['p_error'],params['steps'])
 
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr2 = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'])
+            df_eq_distr2 = STDC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'])
 
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr3 = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'])
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     print(params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_droplets_10.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=10000)
