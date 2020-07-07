@@ -49,14 +49,8 @@ class MWPM():
         # array of coordniates of defects on the syndrom matrix
         defect_coords = np.array(np.nonzero(defects)).T
 
-        # number of defects
-        nbr_nodes = len(defect_coords)
-
-        # each node is paired with each other node, so there are n(n-1)/2 edges
-        nbr_edges = int(nbr_nodes * (nbr_nodes - 1) / 2)
-
         # generates node indices
-        edges = self.generate_node_indices(layer)
+        edges, nbr_nodes, nbr_edges = self.generate_node_indices(layer)
 
         # builds arguments for the bloosom5 program
         processId = os.getpid()
@@ -99,25 +93,31 @@ class MWPM():
             
             # number of defects
             nbr_defects = defect_coords.shape[0]
+            # twice as many nodes as defects since every defect gets an ancillary node
+            nbr_nodes = 2 * nbr_defects
 
         else:
             # array of coordinates of defects on the defect matrix
             defect_coords = np.array(np.nonzero(self.code.current_state[layer])).T
             # number of defects
             nbr_defects = defect_coords.shape[0]
+            # for toric the number of nodes is the same as the number of defects
+            nbr_nodes = nbr_defects
         
         nbr_edges = int(nbr_defects * (nbr_defects - 1) / 2)
 
         # list of single-valued arrays of decreasing length and increasing value
         start_nodes, end_nodes = connect_all(nbr_defects)
+
         distances = [self.get_shortest_distance(defect_coords[start_nodes[edge]], defect_coords[end_nodes[edge]])
                 for edge in range(nbr_edges)]
 
         if self.is_planar:
             # list of border each defect can match to
             # left/top border corresponds to 0; right/bottom corresponds to to 1
-            borders = int(defect_coords[:, (not layer)] * 2 > self.code.system_size)
-            nbr_ancilla_nodes_0, nbr_ancilla_nodes_1 = np.bincount(borders)
+            nearest_border = ((defect_coords[:, layer] + 1) * 2 > self.code.system_size).astype(int)
+            nbr_ancilla_nodes_0 = np.bincount(nearest_border)[0]
+            nbr_ancilla_nodes_1 = nbr_defects - nbr_ancilla_nodes_0
             nbr_ancilla_edges_0 = (nbr_ancilla_nodes_0 * (nbr_ancilla_nodes_0 - 1)) // 2
             nbr_ancilla_edges_1 = (nbr_ancilla_nodes_1 * (nbr_ancilla_nodes_1 - 1)) // 2
 
@@ -131,28 +131,33 @@ class MWPM():
             # put weight 0 on edges between ancilla defects
             ancilla_1_distances = [0] * nbr_ancilla_edges_1
 
-            # connect all real defects with their corresponding ancilla defect
+            # connect all real defects with their corresponding ancilla defects
             border_start = [i for i in range(nbr_defects)]
-            border_end = [nbr_defects + borders[start] * nbr_ancilla_nodes_0 + start for start in border_start]
-            # weight of border edges is distance from defect to closest border
-            border_distances = [min(defect_coords[defect, (not layer)], self.code.system_size - defect_coords[defect, (not layer)])
-                    for defect in border_start]
+            border_end = []
+            border_distances = []
+            ancilla_counts = [0, 0]
+            for start, border in enumerate(nearest_border):
+                border_end.append(nbr_defects + border * nbr_ancilla_nodes_0 + ancilla_counts[border])
+                # weight of border edges is distance from defect to closest border
+                distance = self.code.system_size - defect_coords[start, layer] - 1 if border else defect_coords[start, layer] + 1
+                border_distances.append(distance)
+                ancilla_counts[border] += 1
 
             # append the lists of nodes with all the ancilla connections
             start_nodes += ancilla_0_start     + ancilla_1_start     + border_start
             end_nodes   += ancilla_0_end       + ancilla_1_end       + border_end
             distances   += ancilla_0_distances + ancilla_1_distances + border_distances
-
             # the number of edges is increased with all edges connecting to ancilla defects
             nbr_edges += nbr_defects + nbr_ancilla_edges_0 + nbr_ancilla_edges_1
+            
 
         # store the lists of node connections and distances in array
         edges = np.zeros((nbr_edges, 3))
-        edges[:, 0] = np.concatenate(start_nodes)
-        edges[:, 1] = np.concatenate(end_nodes)
-        edges[:, 2] = np.concatenate(distances)
+        edges[:, 0] = np.array(start_nodes)
+        edges[:, 1] = np.array(end_nodes)
+        edges[:, 2] = np.array(distances)
 
-        return edges
+        return edges, nbr_nodes, nbr_edges
 
     #KLAR
     def eliminate_defect_pair(self, start_coord, end_coord, layer):
@@ -167,7 +172,7 @@ class MWPM():
         # if torus, both paths around torus are interesting
         else:
             # calculates manhattan distance between defects other way around torus
-            size_diff = (np.array([system_size, system_size]) - np.abs(diff_coord)) % system_size
+            size_diff = (system_size - np.abs(diff_coord)) % system_size
 
             # calculates shortest vertical and horizontal distance between defects
             nbr_vertical_steps = min(size_diff[0], np.abs(diff_coord[0]))
@@ -178,7 +183,6 @@ class MWPM():
 
         correction = np.zeros_like(self.code.qubit_matrix)
         
-        # HIT KOM JAG INNAN TIDEN TOG SLUT
         top, bot = sorted([start_coord[0], end_coord[0]])
         left, right = sorted([start_coord[1], end_coord[1]])
 
@@ -188,7 +192,7 @@ class MWPM():
             correction[layer, vert, start_coord[1]] = operator
             # horizontal. '+ layer' offsets x qubit horizontal position in relation to x defect
             horiz = [i + layer for i in range(left, right)]
-            correction[not layer, end_coord[0], horiz] = operator
+            correction[int(not layer), end_coord[0], horiz] = operator
         
         else:
             # for toric the offsets are different and are only needed for x qubits
@@ -210,36 +214,83 @@ class MWPM():
             else:
                 # list of qubit directly connecting defect pair
                 horiz = [i + layer for i in range(left, right)]
-            correction[not layer, end_coord[0], horiz] = operator
+            correction[int(not layer), end_coord[0], horiz] = operator
 
         # Apply correction
         self.code.qubit_matrix ^= correction
+
+
+    # connects a defect to its closest border
+    def eliminate_border_defect(self, coord, layer):
+        # translates the layer into x or z operators
+        operator = (not layer) * 2 + 1
+
+        correction = np.zeros_like(self.code.qubit_matrix)
+
+        # layer = 0 -> Z defects -> connect verticaly
+        if layer == 0:
+            # find closest border
+            if (coord[0] + 1) * 2 < self.code.system_size:
+                correction[0, :coord[0] + 1, coord[1]] = operator
+            else:
+                correction[0, coord[0] + 1:, coord[1]] = operator
+
+        # layer = 1 -> X defects -> connect horizontally
+        else:
+            # find closest border
+            if (coord[1] + 1) * 2 < self.code.system_size:
+                correction[0, coord[0], :coord[1] + 1] = operator
+            else:
+                correction[0, coord[0], coord[1] + 1:] = operator
+
+        self.code.qubit_matrix ^= correction
+
+
+    # !!!!!!!! ENDAST DENNA KVAR !!!!!!!!!
+    # eliminate_defect_pair ska hantera all parning av defekter pa ytan
+    # Det aterstar att identifiera och hantera nar ytdefekter paras till ancilla defekter
+    # Sen ar det saklart bugfixande kvar
+    # given torus and defect pairs, this applies a correction connecting the pairs
+    def generate_solution(self, layer):
+
+        MWPM_edges, edges, defect_coords = self.generate_MWPM(layer)
+        print('mwpm', MWPM_edges)
+        print('edges', edges)
+        if self.is_planar:
+            # number of defects
+            nbr_defects = defect_coords.shape[0]
+            
+            # select edges connecting pairs of defects
+            defect_edges = MWPM_edges[(MWPM_edges[:, 0] < nbr_defects) & (MWPM_edges[:, 1] < nbr_defects)]
+
+            # select edges connecting defects to borders
+            border_edges = MWPM_edges[(MWPM_edges[:, 0] < nbr_defects) & (MWPM_edges[:, 1] >= nbr_defects)]
+
+            # find coordinates of border defects
+            # border edges always start with the 'real' defect
+            border_coords = defect_coords[border_edges[:, 0].T, :]
+
+            # eliminate border connected defects
+            for coord in border_coords:
+                self.eliminate_border_defect(coord, layer)
+            
+        else:
+            defect_edges = MWPM_edges
+
+        # coordinates of pairs to connect
+        start_coords = defect_coords[defect_edges[:, 0].T, :]
+        end_coords = defect_coords[defect_edges[:, 1].T, :]
+
+        # iterate through all the mwpm defect pairs
+        for start_coord, end_coord in zip(start_coords, end_coords):
+            # eliminate the current pair
+            self.eliminate_defect_pair(start_coord, end_coord, layer)
 
         if self.is_planar:
             self.code.syndrom()
         else:
             self.code.syndrom('state')
-        
-        # The toric/plane is corrected, no need to return anything
-        return
 
-    # !!!!!!!! ENDAST DENNA KVAR !!!!!!!!!
-    # eliminate_defect_pair ska hantera alla parning av defekter pa ytan
-    # Det aterstar att upptacka och hantera nar ytdefekter paras till ancilla defekter
-    # Sen ar det saklart bugfixande kvar
-    # given torus and defect pairs, this applies a correction connecting the pairs
-    def generate_solution(MWPM_edges, defect_coords, toric_code, matrix_index, system_size):
-        # coordinates of pairs to connect
-        start_coords = defect_coords[MWPM_edges[:, 0].T, :]
-        end_coords = defect_coords[MWPM_edges[:, 1].T, :]
-
-        # if there are defects on the torus
-        if (np.sum(np.sum(toric_code.current_state[matrix_index])) > 0):
-            # iterate through all the mwpm defect pairs
-            for start_coord, end_coord in zip(start_coords, end_coords):
-                # eliminate the current pair
-                toric_code = eliminate_defect_pair(toric_code, start_coord, end_coord, matrix_index, system_size)
-        return toric_code
 
 #KLAR
 # non periodic manhattan distance between defect at coord1 and coord2
@@ -248,16 +299,20 @@ def manhattan_path(defect1, defect2):
     y_distance = np.abs(defect1[1] - defect2[1])
     return np.array([x_distance, y_distance])
 
+
 #KLAR
 def connect_all(nbr_nodes, index_offset=0):
     # list of lists where every node's index is repeated for every connection it 'starts'
-    start = [[i + index_offset] * (nbr_nodes - i - 1) for i in range(nbr_nodes)]
+    start = []
     # list of lists with the indices of every 'end' node corresponding to the 'start' nodes above
-    end = [[j + index_offset for j in range(i + 1, nbr_nodes)] for i in range(nbr_nodes)]
+    end = []
+    for i in range(nbr_nodes):
+        start += [i + index_offset] * (nbr_nodes - i - 1)
+        end += [j + index_offset for j in range(i + 1, nbr_nodes)]
 
     return start, end
 
-#SKA ANTAGLIGEN INTE ANVANDAS
+
 def main(args):
     #TODO: add support for arguments
     # parser = argparse.ArgumentParser()
@@ -286,10 +341,10 @@ def main(args):
 
 
     p_errors = [0.07]
-    system_size = int(5)
-    nbr_of_iterations = int(1e2)
+    system_size = 5
+    nbr_of_iterations = 1
 
-    print(p_errors)
+    #print(p_errors)
     ground_state_kept_list = []
 
     # iterate through p_errors
@@ -299,12 +354,26 @@ def main(args):
         # iterate some number of times
         for _ in range(nbr_of_iterations):
             # create a torus and generate error according to p
-            toric_code = Toric_code(system_size)
+            code = Planar_code(system_size)
+            mwpm = MWPM(code)
             nbr_of_vertex_nodes = 0
             nbr_of_plaquette_nodes = 0
 
-            toric_code = generate_syndrome(toric_code, p)
-            n = 3
+            #code.generate_random_error(p)
+            
+            code.qubit_matrix = np.array([[[0, 0, 0, 0, 0],
+                                           [0, 1, 0, 0, 0],
+                                           [0, 0, 2, 0, 0],
+                                           [0, 0, 0, 0, 0],
+                                           [0, 0, 0, 0, 0]],
+                                          [[0, 0, 0, 0, 0],
+                                           [0, 0, 1, 0, 0],
+                                           [0, 0, 0, 0, 0],
+                                           [0, 0, 0, 0, 0],
+                                           [0, 0, 0, 0, 0]]])
+            code.syndrom()
+            
+            code.plot('pre')
 
             MWPM_edges_vertex = []
             edges_vertex = []
@@ -316,23 +385,19 @@ def main(args):
             edges_no_periodic_plaquette = []
             defect_coords_plaquette = []
 
-            # if there are defects in a layer, connect pairs of defects with mwpm
-            if np.sum(np.sum(toric_code.current_state[0])) > 0:
-                MWPM_edges_vertex, edges_vertex, edges_no_periodic_vertex, defect_coords_vertex = generate_MWPM(toric_code.current_state[0], system_size)
-            if np.sum(np.sum(toric_code.current_state[1])) > 0:
-                MWPM_edges_plaquette, edges_plaquette, edges_no_periodic_plaquette, defect_coords_plaquette = generate_MWPM(toric_code.current_state[1], system_size)
-
             # connect defect pairs given by mwpm
-            if len(MWPM_edges_vertex) > 0:
-                toric_code = generate_solution(MWPM_edges_vertex, defect_coords_vertex, toric_code, 0, system_size)
-            if len(MWPM_edges_plaquette) > 0:
-                toric_code = generate_solution(MWPM_edges_plaquette, defect_coords_plaquette, toric_code, 1, system_size)
+            if np.count_nonzero(mwpm.code.vertex_defects):
+                mwpm.generate_solution(0)
+            if np.count_nonzero(mwpm.code.plaquette_defects):
+                mwpm.generate_solution(1)
+
+            code.plot('post')
 
             # check for logical errors
-            toric_code.eval_ground_state()
-            ground_states += toric_code.ground_state
+            #code.eval_ground_state()
+            #ground_states += code.ground_state
 
-        ground_state_kept_list.append(ground_states/nbr_of_iterations)
+        #ground_state_kept_list.append(ground_states/nbr_of_iterations)
 
     # store results
     #timestamp = time.ctime()
