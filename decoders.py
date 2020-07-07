@@ -215,10 +215,13 @@ def STDC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
         # go to class eq and apply stabilizers
         chain.code.qubit_matrix = init_code.to_class(eq)
 
-        with Pool(droplets) as pool:
-            output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps) for _ in range(droplets)])
-            for j in range(droplets):
-                qubitlist.update(output[j])
+        if droplets == 1:
+            qubitlist = STDC_droplet((copy.deepcopy(chain), steps))
+        else:
+            with Pool(droplets) as pool:
+                output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps) for _ in range(droplets)])
+                for j in range(droplets):
+                    qubitlist.update(output[j])
 
         # compute Z_E        
         for key in qubitlist:
@@ -342,51 +345,56 @@ def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
     # Iterate through equivalence classes
     for eq in range(nbr_eq_classes):
         # Start parallel processes with droplets.
-        with Pool(droplets) as pool:
-            output = pool.map(STRC_droplet, [(copy.deepcopy(chain), steps, max_length, eq) for _ in range(droplets)])
+        if droplets == 1:
+            unique_lengths, len_counts, short_unique = STRC_droplet((copy.deepcopy(chain), steps, max_length, eq))
+            shortest = rand.choice(list(short_unique[0].values()))            
+            next_shortest = rand.choice(list(short_unique[1].values()))
+        else:
+            with Pool(droplets) as pool:
+                output = pool.map(STRC_droplet, [(copy.deepcopy(chain), steps, max_length, eq) for _ in range(droplets)])
 
-        # We need to combine the results from all raindrops
-        unique_lengths = {}
-        len_counts = {}
-        short_unique = [{} for _ in range(2)]
+            # We need to combine the results from all raindrops
+            unique_lengths = {}
+            len_counts = {}
+            short_unique = [{} for _ in range(2)]
 
-        shortest = max_length
-        next_shortest = max_length
+            shortest = max_length
+            next_shortest = max_length
 
-        # Find shortest and next shortest length found by any chain
-        for i in range(droplets):
-            _,_,data = output[i]
-            if rand.choice(list(data[0].values())) < shortest:
-                next_shortest = shortest
-                shortest = rand.choice(list(data[0].values()))
-            if rand.choice(list(data[1].values())) < next_shortest:
-                next_shortest = rand.choice(list(data[1].values()))
-        
-        # Add data from each droplet to the combined dataset
-        for i in range(droplets):
-            # Unpack results
-            unique_lengths_i, len_counts_i, short_unique_i = output[i]
+            # Find shortest and next shortest length found by any chain
+            for i in range(droplets):
+                _,_,data = output[i]
+                if rand.choice(list(data[0].values())) < shortest:
+                    next_shortest = shortest
+                    shortest = rand.choice(list(data[0].values()))
+                if rand.choice(list(data[1].values())) < next_shortest:
+                    next_shortest = rand.choice(list(data[1].values()))
             
-            # Combine unique lengths ( not really needed? )
-            unique_lengths.update(unique_lengths_i)
+            # Add data from each droplet to the combined dataset
+            for i in range(droplets):
+                # Unpack results
+                unique_lengths_i, len_counts_i, short_unique_i = output[i]
+                
+                # Combine unique lengths ( not really needed? )
+                unique_lengths.update(unique_lengths_i)
 
-            # Combine len_counts
-            for key in len_counts_i:
-                if key in len_counts:
-                    len_counts[key] += len_counts_i[key]
-                else:
-                    len_counts[key] = len_counts_i[key]
-            
-            # Combine the sets of shortest and next shortest chains
-            shortest_i = rand.choice(list(short_unique_i[0].values()))
-            next_shortest_i = rand.choice(list(short_unique_i[1].values()))
+                # Combine len_counts
+                for key in len_counts_i:
+                    if key in len_counts:
+                        len_counts[key] += len_counts_i[key]
+                    else:
+                        len_counts[key] = len_counts_i[key]
+                
+                # Combine the sets of shortest and next shortest chains
+                shortest_i = rand.choice(list(short_unique_i[0].values()))
+                next_shortest_i = rand.choice(list(short_unique_i[1].values()))
 
-            if shortest_i == shortest:
-                short_unique[0].update(short_unique_i[0])
-            if shortest_i == next_shortest:
-                short_unique[1].update(short_unique_i[0])
-            if next_shortest_i == next_shortest:
-                short_unique[1].update(short_unique_i[1])
+                if shortest_i == shortest:
+                    short_unique[0].update(short_unique_i[0])
+                if shortest_i == next_shortest:
+                    short_unique[1].update(short_unique_i[0])
+                if next_shortest_i == next_shortest:
+                    short_unique[1].update(short_unique_i[1])
 
         # Partial result needed for boltzmann factor
         shortest_count = len(short_unique[0])
@@ -435,10 +443,10 @@ if __name__ == '__main__':
             #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
+            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=10)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps)
+            distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=10)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
             distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error, SEQ=10, eps=0.1, conv_criteria='error_based')
