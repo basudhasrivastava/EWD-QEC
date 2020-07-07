@@ -16,6 +16,128 @@ from math import log, exp
 from operator import itemgetter
 from multiprocessing import Pool
 
+# Original MCMC Parallel tempering method as descibed in high threshold paper
+# Parameters also adapted from that paper.
+def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000000, iters=10, conv_criteria='error_based'):
+    # System size is determined from init_code
+    size = init_code.system_size
+
+    # either 4 or 16 depending on choice of code topology
+    nbr_eq_classes = init_code.nbr_eq_classes
+
+    # If not specified, use size as per paper
+    Nc = Nc or size
+
+    # Warn about incorrect parameter inputs
+    if tops_burn >= TOPS:
+        print('tops_burn has to be smaller than TOPS')
+
+    ladder = []  # ladder to store all parallel chains with diffrent temperatures
+    p_end = 0.75  # p at top chain is 0.75 (all I,X,Y,Z equally likely)
+
+    # initialize variables
+    tops0 = 0
+    since_burn = 0
+    resulting_burn_in = 0
+    nbr_errors_bottom_chain = np.zeros(steps)
+
+    eq = np.zeros([steps, nbr_eq_classes], dtype=np.uint32)  # list of class counts after burn in
+
+    # used in error_based/majority_based instead of setting tops0 = TOPS
+    tops_change = 0
+
+    # Convergence flag
+    convergence_reached = False
+
+    # Initialize all chains in ladder with same state but different temperatures.
+    for i in range(Nc):
+        p_i = p + ((p_end - p) / (Nc - 1)) * i # Temperature (in p) for chain i
+        ladder.append(Chain(size, p_i))
+        ladder[i].code= copy.deepcopy(init_code)  # give all the same initial state
+
+    # Set probability of application of logical operator in top chain
+    ladder[Nc - 1].p_logical = 0.5
+
+    # Main loop that runs until convergence or max steps (steps) are reached
+    for j in range(steps):
+        # Run Metropolis steps for each chain in ladder
+        for i in range(Nc):
+            ladder[i].update_chain(iters)
+
+        # Flag are used to know what chains originating in the top layer of the ladder has found their way down
+        # The top chain always generates chains with flag "1". Once such a chain reaches the bottom the flag is
+        # reset to 0
+        ladder[-1].flag = 1
+
+        # current_eq attempt flips of chains from the top down
+        for i in reversed(range(Nc - 1)):
+            if r_flip(ladder[i].code.qubit_matrix, ladder[i].p, ladder[i + 1].code.qubit_matrix, ladder[i + 1].p):
+                ladder[i].code, ladder[i + 1].code = ladder[i + 1].code, ladder[i].code
+                ladder[i].flag, ladder[i + 1].flag = ladder[i + 1].flag, ladder[i].flag
+        
+        # Update bottom chain flag and add to tops0
+        if ladder[0].flag == 1:
+            tops0 += 1
+            ladder[0].flag = 0
+
+        # Get sample from eq-class of chain in lowest layer of ladder
+        current_eq = ladder[0].code.define_equivalence_class()
+
+        # Start saving stats once burn-in period is over
+        if tops0 >= tops_burn:
+            since_burn = j - resulting_burn_in
+
+            eq[since_burn] = eq[since_burn - 1]
+            eq[since_burn][current_eq] += 1
+            nbr_errors_bottom_chain[since_burn] = ladder[0].code.count_errors()
+        else:
+            # number of steps until tops0 = 2
+            resulting_burn_in += 1
+
+        # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
+        if not convergence_reached and tops0 >= TOPS and not since_burn % 10:
+            if conv_criteria == 'error_based':
+                tops_accepted = tops0 - tops_change
+                accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted, SEQ, eps)
+                if not accept:
+                    tops_change = tops0
+        if convergence_reached:
+            break
+
+    return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
+
+@njit # r_flip calculates the quotient called r_flip in paper
+def r_flip(qubit_lo, p_lo, qubit_hi, p_hi):
+    ne_lo = 0
+    ne_hi = 0
+    for i in range(2):
+        for j in range(qubit_lo.shape[1]):
+            for k in range(qubit_lo.shape[1]):
+                if qubit_lo[i, j, k] != 0:
+                    ne_lo += 1
+                if qubit_hi[i, j, k] != 0:
+                    ne_hi += 1
+    # compute eqn (5) in high threshold paper
+    if rand.random() < ((p_lo / p_hi) * ((1 - p_hi) / (1 - p_lo))) ** (ne_hi - ne_lo):
+        return True
+    return False
+
+
+# convergence criteria used in paper and called ''felkriteriet''
+def conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted, SEQ, eps):
+    # last nonzero element of nbr_errors_bottom_chain is since_burn. Length of nonzero part is since_burn + 1
+    l = since_burn + 1
+    # Calculate average number of errors in 2nd and 4th quarter
+    Average_Q2 = np.average(nbr_errors_bottom_chain[(l // 4): (l // 2)])
+    Average_Q4 = np.average(nbr_errors_bottom_chain[(3 * l // 4): l])
+
+    # Compare averages
+    error = abs(Average_Q2 - Average_Q4)
+    if error < eps:
+        return True, tops_accepted >= SEQ
+    else:
+        return False, False
+
 def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_based'):
     nbr_eq_classes = init_code.nbr_eq_classes
     ground_state = init_code.define_equivalence_class()
@@ -303,11 +425,11 @@ def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
 
 if __name__ == '__main__':
     t0 = time.time()
-    size =  11
+    size = 5
     steps = 10000 * int(1 + (size / 5) ** 4)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
-    p_error = 0.05
-    p_sampling = 0.05
+    p_error = 0.1
+    p_sampling = 0.1
     init_code = Planar_code(size)
     tries = 2
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
@@ -326,12 +448,14 @@ if __name__ == '__main__':
             #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, steps=steps, droplets=10)
+            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=10)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
             distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=10)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-
+            t0 = time.time()
+            distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error, SEQ=10, eps=0.1, conv_criteria='error_based')
+            print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
 
         tvd = sum(abs(distrs[1]-distrs[0]))
