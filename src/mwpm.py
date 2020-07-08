@@ -50,40 +50,23 @@ class MWPM():
         defect_coords = np.array(np.nonzero(defects)).T
 
         # generates node indices
-
         edges, nbr_nodes, nbr_edges = self.generate_node_indices(layer)
         edges_start = copy.deepcopy(edges)
         chosen_edges = np.empty(shape=[0,3])
-        print(edges, 'edges start')
 
+        #removes all connections between ancilla bits
         edges = edges[~np.all(edges[:,0:2] >= (np.amax(edges[:,0:2])+1)/2, axis=1)]
 
-        print(edges, 'edges removed')
-
+        #select random edges and remove the rest
         while edges.shape[0] > 0:
-
-
-            #print(chosen_edges, 'chosen_edges')
-
-            #print(edges, 'edges')
-            print()
             rownum = rand.randint(0,edges.shape[0]-1)
             row = edges[rownum,:]
             chosen_edges = np.concatenate((chosen_edges, [row]), axis = 0)
-
             r0 = row[0]
             r1 = row[1]
-            #print('before1', edges)
-            #print('r0, r1', r0, r1)
             edges = edges[~np.any(edges[:,0:2] == r0, axis=1)]
-            #print('before2:  ', edges)
             edges = edges[~np.any(edges[:,0:2] == r1, axis=1)]
-            #print('before3:  ', edges)
-            """while edges[:,0:1].any() == r0 or edges[:,0:1].any() == r1:
-                if edges[i,0].any() == r0 or edges[i,1].any() == r1:
-                    print("here")
-                    edges = np.delete(edges, i, axis = 0)"""
-        print(chosen_edges, "chosen_edges")
+
         return chosen_edges.astype(int), edges_start, defect_coords
 
 
