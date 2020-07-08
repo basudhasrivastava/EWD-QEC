@@ -4,8 +4,10 @@ import getopt
 import time
 import subprocess
 import argparse
+import copy
 
 import numpy as np
+import random as rand
 
 from src.toric_model import *
 from src.planar_model import *
@@ -33,6 +35,58 @@ class MWPM():
             shortest_path = np.min(non_periodic_path, periodic_path, axis=1)
             # Total minimum distance
             return shortest_path.sum()
+
+
+    def generate_random_pairing(self, layer):
+        if self.is_planar:
+            if layer == 0:
+                defects = self.code.vertex_defects
+            elif layer == 1:
+                defects = self.code.plaquette_defects
+        else:
+            defects = self.code.current_state[layer]
+
+        # array of coordniates of defects on the syndrom matrix
+        defect_coords = np.array(np.nonzero(defects)).T
+
+        # generates node indices
+
+        edges, nbr_nodes, nbr_edges = self.generate_node_indices(layer)
+        edges_start = copy.deepcopy(edges)
+        chosen_edges = np.empty(shape=[0,3])
+        print(edges, 'edges start')
+
+        edges = edges[~np.all(edges[:,0:2] >= (np.amax(edges[:,0:2])+1)/2, axis=1)]
+
+        print(edges, 'edges removed')
+
+        while edges.shape[0] > 0:
+
+
+            #print(chosen_edges, 'chosen_edges')
+
+            #print(edges, 'edges')
+            print()
+            rownum = rand.randint(0,edges.shape[0]-1)
+            row = edges[rownum,:]
+            chosen_edges = np.concatenate((chosen_edges, [row]), axis = 0)
+
+            r0 = row[0]
+            r1 = row[1]
+            #print('before1', edges)
+            #print('r0, r1', r0, r1)
+            edges = edges[~np.any(edges[:,0:2] == r0, axis=1)]
+            #print('before2:  ', edges)
+            edges = edges[~np.any(edges[:,0:2] == r1, axis=1)]
+            #print('before3:  ', edges)
+            """while edges[:,0:1].any() == r0 or edges[:,0:1].any() == r1:
+                if edges[i,0].any() == r0 or edges[i,1].any() == r1:
+                    print("here")
+                    edges = np.delete(edges, i, axis = 0)"""
+        print(chosen_edges, "chosen_edges")
+        return chosen_edges.astype(int), edges_start, defect_coords
+
+
 
     #KLAR
     def generate_MWPM(self, layer):
@@ -76,6 +130,8 @@ class MWPM():
         os.remove(PATH)
         os.remove(OUTPUT_PATH)
 
+        print(MWPM_edges)
+
         return MWPM_edges, edges, defect_coords
 
     #KLAR
@@ -84,13 +140,13 @@ class MWPM():
         # get defects in layer
         # planar has different names for different layers
         if self.is_planar:
-            
+
             # array of coordinates of defects on the defect matrix
             if layer == 0:
                 defect_coords = np.array(np.nonzero(self.code.vertex_defects)).T
             elif layer == 1:
                 defect_coords = np.array(np.nonzero(self.code.plaquette_defects)).T
-            
+
             # number of defects
             nbr_defects = defect_coords.shape[0]
             # twice as many nodes as defects since every defect gets an ancillary node
@@ -103,7 +159,7 @@ class MWPM():
             nbr_defects = defect_coords.shape[0]
             # for toric the number of nodes is the same as the number of defects
             nbr_nodes = nbr_defects
-        
+
         nbr_edges = int(nbr_defects * (nbr_defects - 1) / 2)
 
         # list of single-valued arrays of decreasing length and increasing value
@@ -149,7 +205,7 @@ class MWPM():
             distances   += ancilla_0_distances + ancilla_1_distances + border_distances
             # the number of edges is increased with all edges connecting to ancilla defects
             nbr_edges += nbr_defects + nbr_ancilla_edges_0 + nbr_ancilla_edges_1
-            
+
 
         # store the lists of node connections and distances in array
         edges = np.zeros((nbr_edges, 3))
@@ -182,7 +238,7 @@ class MWPM():
         operator = (not layer) * 2 + 1
 
         correction = np.zeros_like(self.code.qubit_matrix)
-        
+
         top, bot = sorted([start_coord[0], end_coord[0]])
         left, right = sorted([start_coord[1], end_coord[1]])
 
@@ -193,7 +249,7 @@ class MWPM():
             # horizontal. '+ layer' offsets x qubit horizontal position in relation to x defect
             horiz = [i + layer for i in range(left, right)]
             correction[int(not layer), end_coord[0], horiz] = operator
-        
+
         else:
             # for toric the offsets are different and are only needed for x qubits
             # vertical. check if periodic distance is shorter
@@ -253,13 +309,14 @@ class MWPM():
     # given torus and defect pairs, this applies a correction connecting the pairs
     def generate_solution(self, layer):
 
-        MWPM_edges, edges, defect_coords = self.generate_MWPM(layer)
+        MWPM_edges, edges, defect_coords = self.generate_random_pairing(layer) #self.generate_MWPM(layer)
+        #MWPM_edges, edges, defect_coords = self.generate_MWPM(layer)
         print('mwpm', MWPM_edges)
         print('edges', edges)
         if self.is_planar:
             # number of defects
             nbr_defects = defect_coords.shape[0]
-            
+
             # select edges connecting pairs of defects
             defect_edges = MWPM_edges[(MWPM_edges[:, 0] < nbr_defects) & (MWPM_edges[:, 1] < nbr_defects)]
 
@@ -273,7 +330,7 @@ class MWPM():
             # eliminate border connected defects
             for coord in border_coords:
                 self.eliminate_border_defect(coord, layer)
-            
+
         else:
             defect_edges = MWPM_edges
 
@@ -360,19 +417,19 @@ def main(args):
             nbr_of_plaquette_nodes = 0
 
             #code.generate_random_error(p)
-            
+
             code.qubit_matrix = np.array([[[0, 0, 0, 0, 0],
-                                           [0, 1, 0, 0, 0],
-                                           [0, 0, 2, 0, 0],
                                            [0, 0, 0, 0, 0],
+                                           [0, 1, 1, 0, 0],
+                                           [0, 1, 1, 0, 0],
                                            [0, 0, 0, 0, 0]],
                                           [[0, 0, 0, 0, 0],
-                                           [0, 0, 1, 0, 0],
+                                           [0, 0, 0, 0, 0],
                                            [0, 0, 0, 0, 0],
                                            [0, 0, 0, 0, 0],
                                            [0, 0, 0, 0, 0]]])
             code.syndrom()
-            
+
             code.plot('pre')
 
             MWPM_edges_vertex = []
@@ -410,6 +467,9 @@ def main(args):
 
     np.savetxt(PATH_ground2, ground_state_kept_list, fmt='%e', comments='')
     print(ground_state_kept_list)
+
+
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
