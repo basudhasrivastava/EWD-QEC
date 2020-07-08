@@ -104,7 +104,10 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
                     tops_change = tops0
         if convergence_reached:
             break
-    print(j)
+    
+    # print warining if max nbr steps are reached before convergence
+    if j + 1 == steps and conv_criteria == 'error_based':
+        print('\n\nWARNING: PTEQ hit maxnbr steps before convergence:\t', j + 1, '\n\n')
 
     return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
 
