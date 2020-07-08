@@ -67,7 +67,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
             df_eq_distr = PTEQ(init_code, params['p_error'])
         elif params['method'] == "STDC":
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'])
+            df_eq_distr = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "ST":
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
@@ -75,17 +75,17 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
             df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "STRC":
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'])
+            df_eq_distr = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "all":
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr1 = single_temp(init_code, params['p_error'],params['steps'])
 
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr2 = STDC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'])
+            df_eq_distr2 = STDC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
 
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr3 = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'])
+            df_eq_distr3 = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
 
             df_eq_distr = np.concatenate((df_eq_distr1,df_eq_distr2,df_eq_distr3), axis=0)
 
@@ -142,22 +142,23 @@ if __name__ == '__main__':
         print('invalid sysargs')
 
     params = {'code': "planar",
-            'method': "PTEQ",
-            'size': 3,
+            'method': "all",
+            'size': 7,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
-            'p_sampling': np.round((0.05 + float(array_id) / 50), decimals=2),
-            'Nc':19,
+            'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
+            'droplets':1,
+            'Nc':None,
             'iters': 10,
             'conv_criteria': 'error_based',
-            'SEQ': 7,
+            'SEQ': 2,
             'TOPS': 10,
-            'eps': 0.005}
+            'eps': 0.1}
     params.update({'steps': np.amax([10000 * int((params['size'] / 5) ** 4), 1300])})
 
     print(params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_droplets_10.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_psample_' + str(params['p_sampling']) + '.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=10000)
