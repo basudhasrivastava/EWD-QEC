@@ -165,7 +165,7 @@ if __name__ == '__main__':
 
     # View data file
     
-    iterator = MCMCDataReader(file_path, params['size'])
-    while iterator.has_next():
-        print('Datapoint nr: ' + str(iterator.current_index() + 1))
-        print(iterator.next())
+    #iterator = MCMCDataReader(file_path, params['size'])
+    #while iterator.has_next():
+    #    print('Datapoint nr: ' + str(iterator.current_index() + 1))
+    #    print(iterator.next())
