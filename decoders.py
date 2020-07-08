@@ -18,7 +18,8 @@ from multiprocessing import Pool
 
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
-def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000000, iters=10, conv_criteria='error_based'):
+# steps has an upper limit on 50 000 000, which should not be met during operation
+def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=10, conv_criteria='error_based'):
     # System size is determined from init_code
     size = init_code.system_size
 
@@ -33,7 +34,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000
         print('tops_burn has to be smaller than TOPS')
 
     ladder = []  # ladder to store all parallel chains with diffrent temperatures
-    p_end = 0.75  # p at top chain is 0.75 (all I,X,Y,Z equally likely)
+    p_end = 0.75  # p at top chain is 0.75 (I,X,Y,Z equally likely)
 
     # initialize variables
     tops0 = 0
@@ -95,7 +96,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000
             resulting_burn_in += 1
 
         # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
-        if not convergence_reached and tops0 >= TOPS and not since_burn % 10:
+        if not convergence_reached and tops0 >= TOPS:
             if conv_criteria == 'error_based':
                 tops_accepted = tops0 - tops_change
                 accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted, SEQ, eps)
@@ -103,6 +104,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000
                     tops_change = tops0
         if convergence_reached:
             break
+    print(j)
 
     return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
 
@@ -454,7 +456,7 @@ if __name__ == '__main__':
             distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=10)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
-            distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error, SEQ=10, eps=0.1, conv_criteria='error_based')
+            distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
             print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
 
