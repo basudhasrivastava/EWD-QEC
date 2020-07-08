@@ -138,7 +138,7 @@ def conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted,
     else:
         return False, False
 
-def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_based'):
+def single_temp(init_code, p, max_iters, burnin=625, conv_criteria='error_based'):
     nbr_eq_classes = init_code.nbr_eq_classes
     ground_state = init_code.define_equivalence_class()
     ladder = [] # list of chain objects
