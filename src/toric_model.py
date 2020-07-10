@@ -59,11 +59,11 @@ class Toric_code():
        return _count_errors(self.qubit_matrix)
 
 
-    def apply_logical(self, operator=int, layer=int, X_pos=0, Z_pos=0):
+    def apply_logical(self, operator: int, layer: int, X_pos=0, Z_pos=0):
         return _apply_logical(self.qubit_matrix, operator, X_pos, Z_pos)
 
 
-    def apply_stabilizer(self, row=int, col=int, operator=int):
+    def apply_stabilizer(self, row: int, col: int, operator: int):
         return _apply_stabilizer(self.qubit_matrix, row, col, operator)
 
 
@@ -83,7 +83,7 @@ class Toric_code():
         return _define_equivalence_class(self.qubit_matrix)
 
 
-    def to_class(self, eq=int):
+    def to_class(self, eq: int):
         return _to_class(eq, self.qubit_matrix)
 
 
@@ -328,7 +328,7 @@ def _count_errors(qubit_matrix):
 
 
 @njit
-def _apply_logical(qubit_matrix, operator=int, layer=int, X_pos=0, Z_pos=0):
+def _apply_logical(qubit_matrix, operator: int, layer: int, X_pos=0, Z_pos=0):
         # Have to make copy, else original matrix is changed
     result_qubit_matrix = np.copy(qubit_matrix)
 
@@ -405,7 +405,7 @@ def _apply_random_logical(qubit_matrix):
 
 
 @njit
-def _apply_stabilizer(qubit_matrix, row=int, col=int, operator=int):
+def _apply_stabilizer(qubit_matrix, row: int, col: int, operator: int):
     # gives the resulting qubit error matrix from applying (row, col, operator) stabilizer
     # doesn't update input qubit_matrix
     size = qubit_matrix.shape[1]
