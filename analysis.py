@@ -13,6 +13,7 @@ from NN import NN_11, NN_17, NN_11_mod
 from tqdm import tqdm
 from src.mcmc import *
 from src.RL import *
+from decoders import *
 
 
 def main(file_path, RL_args, prediction_args):
@@ -80,11 +81,70 @@ def getMCMCstats(qubit_matrix_in, size, p_error, Nc=19, steps=1000000, crit='err
                 print('class ', j, '\t\t', nbr_comb)
 
 
+def getSTDCstats(qubit_matrix_in, size, p_error, steps=20000):
+    """Get statistics about distribution of error chains given a syndrom (error chain) using MCMC-sampling."""
+    init_toric = Toric_code(size)
+    
+    # define error
+    init_toric.qubit_matrix = qubit_matrix_in
+    init_toric.syndrom('next_state')
+
+    # plot initial error configuration
+    init_toric.plot_toric_code(init_toric.next_state, 'Chain_init')
+    # Start in random eq-class
+    qubit_matrix_in, _ = apply_random_logical(qubit_matrix_in)
+    qubit_matrix_in = apply_stabilizers_uniform(qubit_matrix_in)
+
+    distr, qubitlist = single_temp_direct_sum(qubit_matrix_in, size, p_error, steps=steps)
+    print(distr)
+    unique_elements, unique_counts = np.unique(qubitlist, axis=0, return_counts=True)
+    print('Number of unique elements: ', len(unique_elements))
+
+    shortest = 1000
+    for i in range(len(qubitlist)):
+        nb = np.count_nonzero(qubitlist[i])
+        if nb < shortest:
+            shortest = nb
+
+    # save all qubits to df_all
+    df = pd.DataFrame({"qubit":[], "nbr_err":[], "nbr_occ":[], "eq_class":[]})
+    df = pd.concat((pd.DataFrame({"qubit":[unique_elements[i]], "nbr_err":[np.count_nonzero(unique_elements[i])], "nbr_occ":[unique_counts[i]], "eq_class": define_equivalence_class(unique_elements[i])}) for i in range(len(unique_elements))),
+            ignore_index=True)
+    
+    for i in range(2):
+        print(shortest+i)
+        print(df.loc[df['nbr_err'] == shortest + i])
+        for j in range(16):
+            nbr_comb = len(df.loc[df['nbr_err'] == shortest + i].loc[df['eq_class'] == j])
+            if nbr_comb > 0:
+                print('class ', j, '\t\t', nbr_comb)
+
+
 if __name__ == '__main__':
-    size = 5
+    '''size = 5
     p_error = 0.15
     file_path = './data/data_5x5_p_0.15.xz'
     prediction_args = {'prediction_list_p_error': [0.0], 'PATH': './network/Size_5_NN_11.pt'}
     RL_args = {'Network': NN_11, 'Network_name': 'Size_5_NN_11', 'system_size': size, 
         'p_error': p_error, 'replay_memory_capacity': 1e4, 'DATA_FILE_PATH': file_path}
-    main(file_path, RL_args, prediction_args)
+    main(file_path, RL_args, prediction_args)'''
+
+    size = 5
+    init_toric = Toric_code(size)
+    p_error = 0.20
+    init_toric.generate_random_error(p_error)
+    init_toric.qubit_matrix = apply_stabilizers_uniform(init_toric.qubit_matrix)
+    print(init_toric.qubit_matrix)
+    for i in range(1):
+        steps = 20000 * int((size/5)**4)
+        print(i+1, 'steps=', steps)
+        eq = STDC(init_toric.qubit_matrix, size, p_error, steps=steps, raindrops=1, threads=1)
+        print(eq)
+    ##means, a, b, = single_temp(init_toric,p_error,100000, 1e-5, burnin=10000)
+    #print(means, a, b)
+    #eq, _, _ = parallel_tempering(init_toric, 19,
+    #                                     p=p_error, steps=1000000,
+    #                                     iters=10,
+    #                                     conv_criteria='error_based')
+    #print(eq)
+    #getSTDCstats(init_toric.qubit_matrix, 5, p_error, steps=160000)
