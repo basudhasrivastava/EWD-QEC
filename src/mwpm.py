@@ -13,19 +13,20 @@ from src.toric_model import *
 from src.planar_model import *
 from src.util import Action
 
+from line_profiler import LineProfiler
 
 class MWPM():
     def __init__(self, code):
         assert type(code) in (Toric_code, Planar_code), 'code has to be either Planar_code or Toric_code'
         self.code = code
         self.is_planar = (type(code) == Planar_code)
-        self.solution = np.zeros_like(code.qubit_matrix)
 
     # calculates shortest distance between two defects
     def get_shortest_distance(self, defect1, defect2):
         # Planar_code only cares about direct path
         if self.is_planar:
             return manhattan_path(defect1, defect2).sum()
+
         # Toric_code has to take periodic path into account
         else:
             # Direct path
@@ -38,9 +39,8 @@ class MWPM():
             return shortest_path.sum()
 
 
-    def generate_random_pairing(self, layer):
+    def generate_random_pairing(self, layer, edges):
         # generates node indices
-        edges, _ = self.generate_edges(layer)
         chosen_edges = np.empty(shape=[0,3])
 
         #removes all connections between ancilla bits
@@ -50,7 +50,7 @@ class MWPM():
         while edges.shape[0] > 0:
             rownum = rand.randint(0,edges.shape[0]-1)
             row = edges[rownum,:]
-            chosen_edges = np.concatenate((chosen_edges, [row]), axis = 0)
+            chosen_edges = np.concatenate((chosen_edges, [row]), axis=0)
             r0 = row[0]
             r1 = row[1]
             edges = edges[~np.any(edges[:,0:2] == r0, axis=1)]
@@ -59,8 +59,6 @@ class MWPM():
         return chosen_edges.astype(int)
 
 
-
-    #KLAR
     def get_layer(self, layer):
         # get defects in layer
         # planar code has different names for different layers
@@ -74,7 +72,8 @@ class MWPM():
 
         return defects
 
-    # generates an array of distinct node pairs and stores in edges[]
+
+    # generates an array of node pairs and corresponding edge weights
     def generate_edges(self, layer):
         # get defects in layer
         defect_coords = np.array(np.nonzero(self.get_layer(layer))).T
@@ -102,21 +101,27 @@ class MWPM():
         if self.is_planar:
             # Generate and interconnect nodes for virtual defects
             nbr_ancilla_nodes = nbr_defects
-            nbr_ancilla_edges = (nbr_ancilla_nodes * (nbr_ancilla_nodes - 1)) // 2
+            nbr_ancilla_edges = nbr_edges
             ancilla_start, ancilla_end = connect_all(nbr_ancilla_nodes, nbr_defects)
 
             # put weight 0 on edges between ancilla defects
             ancilla_distances = [0] * nbr_ancilla_edges
 
             # connect every real defect to an ancillary defect
-            border_start = [0] * nbr_defects
-            border_end = [0] * nbr_defects
+            border_start =     [0] * nbr_defects
+            border_end =       [0] * nbr_defects
             border_distances = [0] * nbr_defects
+            ancilla_sides = np.zeros(nbr_defects)
             for start in range(nbr_defects):
                 border_start[start] = start
                 border_end[start] = start + nbr_defects
                 # calculate shortest distance to any border
-                distance = min(self.code.system_size - defect_coords[start, layer] - 1, defect_coords[start, layer] + 1)
+                distance = defect_coords[start, layer] + 1
+                if distance * 2 < self.code.system_size:
+                    ancilla_sides[start] = 0
+                else:
+                    ancilla_sides[start] = 1
+                    distance = self.code.system_size - distance
                 border_distances[start] = distance
 
             # append lists of start nodes, end nodes and distances
@@ -133,7 +138,10 @@ class MWPM():
         edges[:, 1] = np.array(end_nodes)
         edges[:, 2] = np.array(distances)
 
-        return edges, nbr_nodes
+        if self.is_planar:
+            return edges, nbr_nodes, ancilla_sides
+        else:
+            return edges, nbr_nodes, None
 
 
     # generates edges so that odd or even parity results in different equivalence classes
@@ -161,56 +169,67 @@ class MWPM():
                 for edge in range(nbr_edges)]
 
         # left/top or right/bottom border closest to each real defect
-        nearest_border = ((defect_coords[:, layer] + 1) * 2 > self.code.system_size).astype(int)
+        border_0_distances = defect_coords[:, layer] + 1
+        nearest_border = (border_0_distances * 2 > self.code.system_size).astype(int)
+        border_distances = [self.code.system_size - border_0_distances[s] if nearest_border[s] 
+                            else border_0_distances[s] for s in range(nbr_defects)]
 
         # number of ancilla nodes on left/top and right/bottom side
-        nbr_ancilla_nodes_0 = np.bincount(nearest_border)[0]
-        nbr_ancilla_nodes_1 = nbr_defects - nbr_ancilla_nodes_0
+        nbr_ancilla_nodes = np.bincount(nearest_border, minlength=2)
 
+        # number of edges added in special case where all defects are on the same border
+        nbr_parity_edges = 0
         # if parity is 1, add nodes on both sides of plane
         if parity == 1:
-            if nbr_ancilla_nodes_0 > 0:
-                nbr_ancilla_nodes_0 += 1
-                nbr_nodes += 1
-            if nbr_ancilla_nodes_1 > 0:
-                nbr_ancilla_nodes_1 += 1
-                nbr_nodes += 1
+            # border corresponding to each ancilla node
+            ancilla_sides = np.zeros(nbr_defects + 2)
+            # b = border
+            for b in range(2):
+                # if a border has no connecting defects
+                if nbr_ancilla_nodes[b] == 0:
+                    # add edges connecting all defects to a node representing the border
+                    start_nodes += [s for s in range(nbr_defects)]
+                    # list of the index of the border node reapeted nbr_defects times
+                    end_nodes += [nbr_defects + (nbr_defects + 1) * b] * nbr_defects
+                    distances += [self.code.system_size - d for d in border_distances]
+                    # update the exception ancilla node with the 'wrong' border
+                    ancilla_sides[(nbr_defects + 1) * b] = b
+                    nbr_parity_edges += nbr_defects
+                nbr_ancilla_nodes[b] += 1
+            nbr_nodes += 2
+        else:
+            ancilla_sides = np.zeros(nbr_defects)
 
         # count number of edges between ancilla nodes on both sides
-        nbr_ancilla_edges_0 = (nbr_ancilla_nodes_0 * (nbr_ancilla_nodes_0 - 1)) // 2
-        nbr_ancilla_edges_1 = (nbr_ancilla_nodes_1 * (nbr_ancilla_nodes_1 - 1)) // 2
-
-        # Connect all ancilla defects on the top/left
-        ancilla_0_start, ancilla_0_end = connect_all(nbr_ancilla_nodes_0, nbr_defects)
-        # put weight 0 on edges between ancilla defects
-        ancilla_0_distances = [0] * nbr_ancilla_edges_0
-
-        # Connect all ancilla defects on the bottom/right
-        ancilla_1_start, ancilla_1_end = connect_all(nbr_ancilla_nodes_1, nbr_defects + nbr_ancilla_nodes_0)
-        # put weight 0 on edges between ancilla defects
-        ancilla_1_distances = [0] * nbr_ancilla_edges_1
+        nbr_ancilla_edges = (nbr_ancilla_nodes * (nbr_ancilla_nodes - 1)) // 2
+        
+        ancilla_start =     [None] * 2
+        ancilla_end =       [None] * 2
+        ancilla_distances = [None] * 2
+        for b in range(2):
+            # Connect all ancilla defects on the top/left and right/bottom
+            ancilla_start[b], ancilla_end[b] = connect_all(nbr_ancilla_nodes[b], nbr_defects + b * nbr_ancilla_nodes[0])
+            # put weight 0 on edges between ancilla defects
+            ancilla_distances[b] = [0] * nbr_ancilla_edges[b]
 
         # connect all real defects with their corresponding ancilla defects
         border_start     = [0] * nbr_defects
         border_end       = [0] * nbr_defects
-        border_distances = [0] * nbr_defects
         ancilla_counts = [0, 0]
-        for start, border in enumerate(nearest_border):
+        for s, b in enumerate(nearest_border):
             # border edges start with a real defects
-            border_start[start] = start
+            border_start[s] = s
             # connects every real defect with an ancilla defect on the closest border
-            border_end[start] = nbr_defects + border * nbr_ancilla_nodes_0 + ancilla_counts[border]
-            # weight of border edges is distance from defect to closest border
-            distance = self.code.system_size - defect_coords[start, layer] - 1 if border else defect_coords[start, layer] + 1
-            border_distances[start] = distance
-            ancilla_counts[border] += 1
+            border_end[s] = nbr_defects + b * nbr_ancilla_nodes[0] + ancilla_counts[b]
+            ancilla_sides[border_end[s] - nbr_defects] = b
+            ancilla_counts[b] += 1
 
         # append the lists of nodes with all the ancilla connections
-        start_nodes += ancilla_0_start     + ancilla_1_start     + border_start
-        end_nodes   += ancilla_0_end       + ancilla_1_end       + border_end
-        distances   += ancilla_0_distances + ancilla_1_distances + border_distances
+        start_nodes += ancilla_start[0]     + ancilla_start[1]     + border_start
+        end_nodes   += ancilla_end[0]       + ancilla_end[1]       + border_end
+        distances   += ancilla_distances[0] + ancilla_distances[1] + border_distances
         # the number of edges is increased with all edges connecting to ancilla defects
-        nbr_edges += nbr_defects + nbr_ancilla_edges_0 + nbr_ancilla_edges_1
+        nbr_edges += nbr_defects + nbr_ancilla_edges[0] + nbr_ancilla_edges[1] + nbr_parity_edges
 
         # store the lists of node connections and distances in array
         edges = np.zeros((nbr_edges, 3))
@@ -218,7 +237,7 @@ class MWPM():
         edges[:, 1] = np.array(end_nodes)
         edges[:, 2] = np.array(distances)
 
-        return edges, nbr_nodes
+        return edges, nbr_nodes, ancilla_sides
 
 
     # takes coordinates of two defects and connects them along a minimum path
@@ -243,7 +262,7 @@ class MWPM():
         # translates the layer into x or z operators
         operator = (not layer) * 2 + 1
 
-        correction = np.zeros_like(self.solution)
+        correction = np.zeros_like(self.code.qubit_matrix)
 
         top, bot = sorted([start_coord[0], end_coord[0]])
         left, right = sorted([start_coord[1], end_coord[1]])
@@ -278,21 +297,23 @@ class MWPM():
                 horiz = [i + layer for i in range(left, right)]
             correction[int(not layer), end_coord[0], horiz] = operator
 
-        # Apply correction
-        self.solution ^= correction
+        return correction
 
 
     # connects a defect to its' closest border
-    def eliminate_border_defect(self, coord, layer):
+    def eliminate_border_defect(self, coord, layer, border=None):
         # translates the layer into x or z operators
         operator = (not layer) * 2 + 1
 
-        correction = np.zeros_like(self.solution)
+        if border is None:
+            border = int((coord[layer] + 1) * 2 > self.code.system_size)
+
+        correction = np.zeros_like(self.code.qubit_matrix)
 
         # layer = 0 -> Z defects -> connect verticaly
         if layer == 0:
             # find closest border
-            if (coord[0] + 1) * 2 < self.code.system_size:
+            if border == 0:
                 correction[0, :coord[0] + 1, coord[1]] = operator
             else:
                 correction[0, coord[0] + 1:, coord[1]] = operator
@@ -300,27 +321,29 @@ class MWPM():
         # layer = 1 -> X defects -> connect horizontally
         else:
             # find closest border
-            if (coord[1] + 1) * 2 < self.code.system_size:
+            if border == 0:
                 correction[0, coord[0], :coord[1] + 1] = operator
             else:
                 correction[0, coord[0], coord[1] + 1:] = operator
 
-        self.solution ^= correction
+        return correction
 
 
     # generates graph of defects in layer, runs blossom5 and generates a correction chain
-    def generate_solution(self, layer, parity=None, random_pairing = False):
+    def generate_solution(self, layer, parity=None, random_pairing=False):
         assert (parity in (None, 0, 1)), 'parity has to be None, 0 or 1'
 
         if parity is None:
             # generates edges optimally
-            edges, nbr_nodes = self.generate_edges(layer)
+            edges, nbr_nodes, ancilla_sides = self.generate_edges(layer)
         else:
-            # generates edges in a
-            edges, nbr_nodes = self.generate_edges_constrained(layer, parity)
+            # generates edges that constrains the solution equivalence class
+            edges, nbr_nodes, ancilla_sides = self.generate_edges_constrained(layer, parity)
 
-        if random_pairing == False: MWPM_edges = self.generate_MWPM(layer, edges, nbr_nodes)
-        else: MWPM_edges = self.generate_random_pairing(layer)
+        if random_pairing == False: 
+            solution_edges = self.generate_MWPM(layer, edges, nbr_nodes)
+        else: 
+            solution_edges = self.generate_random_pairing(layer, edges)
 
         # get defects in layer
         defects = self.get_layer(layer)
@@ -328,28 +351,29 @@ class MWPM():
         # array of coordinates of defects on the syndrom matrix
         defect_coords = np.array(np.nonzero(defects)).T
 
-
+        correction = np.zeros_like(self.code.qubit_matrix)
 
         if self.is_planar:
             # number of defects
             nbr_defects = defect_coords.shape[0]
 
             # select edges connecting pairs of defects
-            defect_edges = MWPM_edges[(MWPM_edges[:, 0] < nbr_defects) & (MWPM_edges[:, 1] < nbr_defects)]
+            defect_edges = solution_edges[(solution_edges[:, 0] < nbr_defects) & (solution_edges[:, 1] < nbr_defects)]
 
             # select edges connecting defects to borders
-            border_edges = MWPM_edges[(MWPM_edges[:, 0] < nbr_defects) & (MWPM_edges[:, 1] >= nbr_defects)]
+            border_edges = solution_edges[(solution_edges[:, 0] < nbr_defects) & (solution_edges[:, 1] >= nbr_defects)]
 
             # find coordinates of border defects
             # border edges always start with the 'real' defect
-            border_coords = defect_coords[border_edges[:, 0].T, :]
+            border_coords = defect_coords[border_edges[:, 0], :]
 
             # eliminate border connected defects
-            for coord in border_coords:
-                self.eliminate_border_defect(coord, layer)
+            for coord, ancilla_node in zip(border_coords, border_edges[:, 1]):
+                border = ancilla_sides[ancilla_node - nbr_defects]
+                correction ^= self.eliminate_border_defect(coord, layer, border)
 
         else:
-            defect_edges = MWPM_edges
+            defect_edges = solution_edges
 
         # coordinates of pairs to connect
         start_coords = defect_coords[defect_edges[:, 0].T, :]
@@ -358,7 +382,9 @@ class MWPM():
         # iterate through all the mwpm defect pairs
         for start_coord, end_coord in zip(start_coords, end_coords):
             # eliminate the current pair
-            self.eliminate_defect_pair(start_coord, end_coord, layer)
+            correction ^= self.eliminate_defect_pair(start_coord, end_coord, layer)
+
+        return correction
 
 
     # generates an mwpm solution in a given defect layer
@@ -392,19 +418,42 @@ class MWPM():
         return MWPM_edges
 
 
-    # Solves syndrom according to optimal mwpm
-    def solve(self, random_pairing = False):
+    # Solves syndrom with mwpm or random pairings
+    def solve(self, random_pairing=False):
         for layer in range(2):
             if np.count_nonzero(self.get_layer(layer)) > 0:
-                self.generate_solution(layer, random_pairing = random_pairing)
+                # calculate correction and apply it
+                self.code.qubit_matrix ^= self.generate_solution(layer, random_pairing=random_pairing)
 
-        # applies generated correction chain
-        self.code.qubit_matrix ^= self.solution
+        # generate syndrom from applied correction
         self.code.syndrom()
 
 
     def generate_classes(self):
-        pass
+        assert type(self.code) == Planar_code, 'Corrections in different classes can only be generated for planar code'
+        solution_list = [[None, None], [None, None]]
+        class_chains = []
+
+        # solve vertex and plaquette syndroms for both 'parities'
+        for layer in range(2):
+            if np.any(self.get_layer(layer)):
+                for parity in range(2):
+                    solution_list[layer][parity] = self.generate_solution(layer, parity)
+                    
+            else:
+                operator = (not layer) * 2 + 1
+                tmp = Planar_code(self.code.system_size)
+                solution_list[layer][0] = tmp.qubit_matrix
+                solution_list[layer][1], _ = tmp.apply_logical(operator)
+        
+        #print(solution_list)
+        # combine layer corrections of varying parities to get all equivalence classes
+        for layer0 in solution_list[0]:
+            for layer1 in solution_list[1]:
+                class_chains.append(layer0 ^ layer1)
+        return class_chains
+        
+
 
 # non periodic manhattan distance between defect at coord1 and coord2
 def manhattan_path(defect1, defect2):
@@ -424,6 +473,21 @@ def connect_all(nbr_nodes, index_offset=0):
         end += [j + index_offset for j in range(i + 1, nbr_nodes)]
 
     return start, end
+
+#@profile
+def class_sorted_mwpm(code):
+    mwpm = MWPM(code)
+    # generate unsorted list of error chains in all classes
+    class_chains = mwpm.generate_classes()
+    sorted_classes = [None] * 4
+    for error_chain in class_chains:
+         # create planar_code objects with generated error chains
+        planar_chain = Planar_code(code.system_size)
+        planar_chain.qubit_matrix = error_chain
+        # place planar_codes in list in order according to their classes
+        sorted_classes[planar_chain.define_equivalence_class()] = planar_chain
+
+    return sorted_classes
 
 
 def main(args):
@@ -472,36 +536,36 @@ def main(args):
             nbr_of_vertex_nodes = 0
             nbr_of_plaquette_nodes = 0
 
-            #code.generate_random_error(p)
-
+            code.generate_random_error(p)
+            '''
             code.qubit_matrix = np.array([[[0, 0, 0, 0, 0],
                                            [0, 0, 0, 0, 0],
-                                           [0, 1, 1, 0, 0],
-                                           [0, 1, 1, 0, 0],
-                                           [0, 0, 0, 0, 0]],
+                                           [0, 0, 0, 0, 0],
+                                           [0, 0, 0, 0, 2],
+                                           [0, 0, 0, 2, 0]],
                                           [[0, 0, 0, 0, 0],
                                            [0, 0, 0, 0, 0],
-                                           [0, 0, 0, 0, 0],
+                                           [0, 3, 0, 0, 0],
                                            [0, 0, 0, 0, 0],
                                            [0, 0, 0, 0, 0]]])
             code.syndrom()
-
+            '''
             code.plot('pre')
-
-            MWPM_edges_vertex = []
-            edges_vertex = []
-            edges_no_periodic_vertex = []
-            defect_coords_vertex = []
-
-            MWPM_edges_plaquette = []
-            edges_plaquette = []
-            edges_no_periodic_plaquette = []
-            defect_coords_plaquette = []
-
+            code.define_equivalence_class()
             # connect defect pairs given by mwpm
-            mwpm.solve(random_pairing = True)
-
-            code.plot('post')
+            #mwpm.solve(random_pairing=True)
+            #code.plot('post')
+            lp = LineProfiler()
+            lp_wrapper = lp(class_sorted_mwpm)
+            lp.add_function(mwpm.generate_classes)
+            lp.add_function(mwpm.generate_solution)
+            lp.add_function(mwpm.generate_MWPM)
+            class_corrections = lp_wrapper(code)
+            lp.print_stats()
+            #class_corrections = class_sorted_mwpm(code)
+            for eq, c in enumerate(class_corrections):
+                c.syndrom()
+                c.plot('post' + str(eq))
 
             # check for logical errors
             #code.eval_ground_state()
@@ -521,7 +585,10 @@ def main(args):
     np.savetxt(PATH_ground2, ground_state_kept_list, fmt='%e', comments='')
 
 
-
-
 if __name__ == "__main__":
+    #lp = LineProfiler()
+    #lp_wrapper = lp(main)
+    #lp_wrapper(sys.argv[1:])
+    #lp.print_stats()
     main(sys.argv[1:])
+
