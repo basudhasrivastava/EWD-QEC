@@ -13,8 +13,6 @@ from src.toric_model import *
 from src.planar_model import *
 from src.util import Action
 
-from line_profiler import LineProfiler
-
 class MWPM():
     def __init__(self, code):
         assert type(code) in (Toric_code, Planar_code), 'code has to be either Planar_code or Toric_code'
@@ -551,27 +549,15 @@ def main(args):
             code.syndrom()
             '''
             code.plot('pre')
-            code.define_equivalence_class()
+            #code.define_equivalence_class()
             # connect defect pairs given by mwpm
             #mwpm.solve(random_pairing=True)
             #code.plot('post')
-            lp = LineProfiler()
-            lp_wrapper = lp(class_sorted_mwpm)
-            lp.add_function(mwpm.generate_classes)
-            lp.add_function(mwpm.generate_solution)
-            lp.add_function(mwpm.generate_MWPM)
-            class_corrections = lp_wrapper(code)
-            lp.print_stats()
-            #class_corrections = class_sorted_mwpm(code)
+
+            class_corrections = class_sorted_mwpm(code)
             for eq, c in enumerate(class_corrections):
                 c.syndrom()
                 c.plot('post' + str(eq))
-
-            # check for logical errors
-            #code.eval_ground_state()
-            #ground_states += code.ground_state
-
-        #ground_state_kept_list.append(ground_states/nbr_of_iterations)
 
     # store results
     #timestamp = time.ctime()
@@ -586,9 +572,5 @@ def main(args):
 
 
 if __name__ == "__main__":
-    #lp = LineProfiler()
-    #lp_wrapper = lp(main)
-    #lp_wrapper(sys.argv[1:])
-    #lp.print_stats()
     main(sys.argv[1:])
 
