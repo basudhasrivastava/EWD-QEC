@@ -58,8 +58,11 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
         df_qubit = copy.deepcopy(init_code.qubit_matrix.reshape((-1)))
 
 
-        #randomize input matrix, no trace of seed.
-        init_code.qubit_matrix, _ = init_code.apply_random_logical()
+        
+        if params['mwpm_init']: #get mwpm starting points
+            init_code = class_sorted_mwpm(init_code)
+        else: #randomize input matrix, no trace of seed.
+            init_code.qubit_matrix, _ = init_code.apply_random_logical()
 
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
@@ -147,6 +150,7 @@ if __name__ == '__main__':
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':1,
+            'mwpm_init':True,
             'Nc':None,
             'iters': 10,
             'conv_criteria': 'error_based',
@@ -158,7 +162,7 @@ if __name__ == '__main__':
     print(params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_psample_' + str(params['p_sampling']) + '.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=10000)
