@@ -61,9 +61,10 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
         
         if params['mwpm_init']: #get mwpm starting points
             init_code = class_sorted_mwpm(init_code)
+            print('Starting in MWPM state')
         else: #randomize input matrix, no trace of seed.
             init_code.qubit_matrix, _ = init_code.apply_random_logical()
-
+            print('Starting in random state')
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         if params['method'] == "PTEQ":
@@ -81,13 +82,13 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
             df_eq_distr = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "all":
-            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr1 = single_temp(init_code, params['p_error'],params['steps'])
 
-            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr2 = STDC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
 
-            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr3 = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
 
             df_eq_distr = np.concatenate((df_eq_distr1,df_eq_distr2,df_eq_distr3), axis=0)
@@ -146,10 +147,10 @@ if __name__ == '__main__':
 
     params = {'code': "planar",
             'method': "all",
-            'size': 7,
+            'size': 15,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
-            'droplets':1,
+            'droplets':4,
             'mwpm_init':True,
             'Nc':None,
             'iters': 10,
@@ -157,12 +158,12 @@ if __name__ == '__main__':
             'SEQ': 2,
             'TOPS': 10,
             'eps': 0.1}
-    params.update({'steps': np.amax([10000 * int((params['size'] / 5) ** 4), 1300])})
+    params.update({'steps': int((10000 * (params['size'] / 5) ** 4) / params['droplets'])})
 
     print(params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_mwpmstart.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=10000)

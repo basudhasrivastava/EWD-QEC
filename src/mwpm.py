@@ -391,15 +391,16 @@ class MWPM():
 
         # builds arguments for the bloosom5 program
         processId = os.getpid()
-        PATH = str(processId) + 'edges.TXT'
-        OUTPUT_PATH = str(processId) +'output.TXT'
+        PATH_PREFIX = os.getenv('TMPDIR') + '/'
+        PATH = PATH_PREFIX + str(processId) + 'edges.TXT'
+        OUTPUT_PATH = PATH_PREFIX + str(processId) +'output.TXT'
 
         # Save txt file with data for blossom5 to read
         header_str = "{} {}".format(nbr_nodes, nbr_edges)
         np.savetxt(PATH, edges, fmt='%i', header=header_str, comments='')
 
         # If on windows, the executable file ends in '.exe'
-        blossomname = './src/blossom5-v2.05.src/blossom5'
+        blossomname = '/cephyr/users/hamkarl/Vera/MCMC-QEC-toric-RL/src/blossom5-v2.05.src/blossom5'
         if os.name == 'windows':
             blossomname += '.exe'
         # Run the blossom5 program as if from the terminal. The devnull part discards any prints from blossom5
