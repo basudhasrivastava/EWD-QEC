@@ -393,8 +393,9 @@ class MWPM():
 
         # builds arguments for the bloosom5 program
         processId = os.getpid()
-        PATH = str(processId) + 'edges.TXT'
-        OUTPUT_PATH = str(processId) +'output.TXT'
+        PATH_PREFIX = os.getenv('TMPDIR') + '/'
+        PATH = PATH_PREFIX + str(processId) + 'edges.TXT'
+        OUTPUT_PATH = PATH_PREFIX + str(processId) +'output.TXT'
 
         # Save txt file with data for blossom5 to read
         header_str = "{} {}".format(nbr_nodes, nbr_edges)
