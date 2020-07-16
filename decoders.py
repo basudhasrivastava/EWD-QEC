@@ -291,7 +291,7 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
             qubitlist = STDC_droplet((copy.deepcopy(chain), steps, randomize))
         else:
             with Pool(droplets) as pool:
-                output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps, randomize) for _ in range(droplets)])
+                output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps, True) for _ in range(droplets-1)] + [(copy.deepcopy(chain), steps, randomize)])
                 for j in range(droplets):
                     qubitlist.update(output[j])
 
@@ -562,7 +562,7 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
             next_shortest = next(iter(short_unique[1].values()))
         else:
             with Pool(droplets) as pool:
-                output = pool.map(STRC_droplet, [(copy.deepcopy(chain), steps, max_length, eq, randomize) for _ in range(droplets)])
+                output = pool.map(STRC_droplet, [(copy.deepcopy(chain), steps, max_length, eq, True) for _ in range(droplets-1)] + [(copy.deepcopy(chain), steps, max_length, eq, randomize)])
 
             # We need to combine the results from all raindrops
             unique_lengths = {}
@@ -660,10 +660,10 @@ if __name__ == '__main__':
             v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            distrs[i] = STDC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            distrs[i] = STRC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
             distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
