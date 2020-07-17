@@ -204,7 +204,7 @@ def STDC_droplet(input_data_tuple):
         chain.update_chain(5)
         key = chain.code.qubit_matrix.astype(np.uint8).tobytes()
         if key not in samples:
-            samples[key] = chain.code.count_errors()
+            samples[hash(key)] = chain.code.count_errors()
 
     return samples
 
@@ -250,7 +250,7 @@ def STDC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
             qubitlist = STDC_droplet((copy.deepcopy(chain), steps, randomize))
         else:
             with Pool(droplets) as pool:
-                output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps, True) for _ in range(droplets-1)] + [(copy.deepcopy(chain), steps, randomize)])
+                output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps, False) for _ in range(droplets-1)] + [(copy.deepcopy(chain), steps, randomize)])
                 for j in range(droplets):
                     qubitlist.update(output[j])
 
@@ -287,7 +287,7 @@ def STRC_droplet(input_data_tuple):
         chain.update_chain(5)
         #print(len(short_unique[1]))
         # Convert the current qubit matrix to string for hashing
-        key = chain.code.qubit_matrix.tobytes()
+        key = hash(chain.code.qubit_matrix.tobytes())
 
         # Check if this error chain has already been seen by comparing hashes
         if key in unique_lengths:
@@ -467,11 +467,11 @@ def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
 
 if __name__ == '__main__':
     t0 = time.time()
-    size = 5
+    size = 9
     steps = 10000 * int(1 + (size / 5) ** 4)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
-    p_error = 0.1
-    p_sampling = 0.1
+    p_error = 0.10
+    p_sampling = 0.25
     init_code = Planar_code(size)
     tries = 2
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
@@ -494,15 +494,15 @@ if __name__ == '__main__':
             #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4)
+            distrs[i] = STDC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=12)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
             distrs[i] = STRC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            t0 = time.time()
+            '''t0 = time.time()
             distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
             print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            t0 = time.time()
+            t0 = time.time()'''
 
         tvd = sum(abs(distrs[1]-distrs[0]))
         mean_tvd += tvd
