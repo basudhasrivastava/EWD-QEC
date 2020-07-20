@@ -168,7 +168,7 @@ if __name__ == '__main__':
             'SEQ': 2,
             'TOPS': 10,
             'eps': 0.1}
-    params.update({'steps': int((10000 * (params['size'] / 5) ** 4) / params['droplets'])})
+    params.update({'steps': int((10000 * (params['size'] / 5) ** 4))})
 
     print(params['steps'])
 
