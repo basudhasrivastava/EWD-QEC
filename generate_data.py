@@ -168,12 +168,12 @@ if __name__ == '__main__':
             'SEQ': 2,
             'TOPS': 10,
             'eps': 0.1}
-    params.update({'steps': int((10000 * (params['size'] / 5) ** 4) / params['droplets'])})
+    params.update({'steps': int((10000 * (params['size'] / 5) ** 4))})
 
     print(params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_mwpmstart.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + 'special10drop1e4.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=10000)
