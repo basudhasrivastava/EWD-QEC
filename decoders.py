@@ -291,7 +291,7 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
             qubitlist = STDC_droplet((copy.deepcopy(chain), steps, randomize))
         else:
             with Pool(droplets) as pool:
-                output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps, False) for _ in range(droplets-1)] + [(copy.deepcopy(chain), steps, randomize)])
+                output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps, True) for _ in range(droplets-1)] + [(copy.deepcopy(chain), steps, randomize)])
                 for j in range(droplets):
                     qubitlist.update(output[j])
 
@@ -630,21 +630,17 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
 
 if __name__ == '__main__':
     t0 = time.time()
-    size = 7
+    size = 15
     steps = 10000 * int(1 + (size / 5) ** 4)
+    print(steps)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
-    p_error = 0.15
-    p_sampling = 0.15
+    p_error = 0.05
+    p_sampling = 0.50
     init_code = Planar_code(size)
     tries = 2
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
     mean_tvd = 0.0
-
-    #from line_profiler import LineProfiler
-    #lp = LineProfiler()
-    #lp_wrapper = lp(STRC)
-
-    for i in range(1):
+    for i in range(100):
         init_code.generate_random_error(p_error)
         ground_state = init_code.define_equivalence_class()
         
@@ -655,17 +651,17 @@ if __name__ == '__main__':
         init_qubit = [code.qubit_matrix for code in class_init]
 
         print('################ Chain', i+1 , '###################')
-
+        
         for i in range(tries):
             v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=12)
+            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STRC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4)
+            distrs[i] = STRC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            '''t0 = time.time()
+            t0 = time.time()
             distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
             print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
