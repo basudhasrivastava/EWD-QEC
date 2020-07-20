@@ -145,14 +145,14 @@ class Planar_code():
         plt.close()
 
 
-@njit
+@njit(cache=True)
 def _count_errors(qubit_matrix):
     return np.count_nonzero(qubit_matrix)
 
 
 # At the moment numba is limited in compiling classes
 # So some class functions above are simply wrappers of the compiled functions below
-@njit
+@njit(cache=True)
 def _apply_logical(qubit_matrix, operator: int, X_pos=0, Z_pos=0):
     # Have to make copy, else original matrix is changed
     result_qubit_matrix = np.copy(qubit_matrix)
@@ -189,7 +189,7 @@ def _apply_logical(qubit_matrix, operator: int, X_pos=0, Z_pos=0):
     return result_qubit_matrix, error_count
 
 
-@njit
+@njit(cache=True)
 def _apply_random_logical(qubit_matrix):
     size = qubit_matrix.shape[1]
 
@@ -209,7 +209,7 @@ def _apply_random_logical(qubit_matrix):
     return _apply_logical(qubit_matrix, op, X_pos, Z_pos)
 
 
-@njit
+@njit(cache=True)
 def _apply_stabilizer(qubit_matrix, row: int, col: int, operator: int):
     # gives the resulting qubit error matrix from applying (row, col, operator) stabilizer
     # doesn't update input qubit_matrix
@@ -259,7 +259,7 @@ def _apply_stabilizer(qubit_matrix, row: int, col: int, operator: int):
     return result_qubit_matrix, error_count
 
 
-@njit
+@njit(cache=True)
 def _apply_random_stabilizer(qubit_matrix):
     size = qubit_matrix.shape[1]
     if rand.random() < 0.5:
@@ -294,7 +294,7 @@ def _apply_stabilizers_uniform(qubit_matrix, p=0.5):
     return result_qubit_matrix
 
 
-@njit
+@njit(cache=True)
 def _define_equivalence_class(qubit_matrix):
     # of x errors in the first column
     x_errors = np.count_nonzero(qubit_matrix[0,:,0]==1)
@@ -308,7 +308,7 @@ def _define_equivalence_class(qubit_matrix):
     return (x_errors % 2) + 2 * (z_errors % 2)
 
 
-@njit
+@njit(cache=True)
 def _to_class(eq, qubit_matrix):
     # Returns an error chain with same syndrom as qubit_matrix, but in the class eq
     # eq is interpreted as a 2-digit binary number (z x)

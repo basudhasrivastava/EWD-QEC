@@ -10,6 +10,7 @@ from src.toric_model import Toric_code
 from src.planar_model import Planar_code
 from src.mcmc import *
 from decoders import *
+from src.mwpm import *
 
 
 # This function generates training data with help of the MCMC algorithm
@@ -92,6 +93,15 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
             df_eq_distr3 = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
 
             df_eq_distr = np.concatenate((df_eq_distr1,df_eq_distr2,df_eq_distr3), axis=0)
+        elif params['method'] == "eMWPM":
+            out = class_sorted_mwpm(copy.deepcopy(init_code))
+            lens = np.zeros((4))
+            for j in range(4):
+                lens[j] = out[j].count_errors()
+            choice = np.argmin(lens)
+            df_eq_distr = np.zeros((4)).astype(np.uint8)
+            df_eq_distr[choice] = 100
+            print(df_eq_distr)
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         
@@ -130,7 +140,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
         df = df.append(df_list)
         print('\nSaving all generated data (writing over)')
         df.to_pickle(file_path)
-
+    
     print('\nCompleted')
 
 
@@ -146,12 +156,12 @@ if __name__ == '__main__':
         print('invalid sysargs')
 
     params = {'code': "planar",
-            'method': "all",
-            'size': 15,
+            'method': "eMWPM",
+            'size': 5,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':4,
-            'mwpm_init':True,
+            'mwpm_init':False,
             'Nc':None,
             'iters': 10,
             'conv_criteria': 'error_based',
