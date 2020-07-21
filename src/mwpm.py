@@ -12,18 +12,20 @@ import random as rand
 from src.toric_model import *
 from src.planar_model import *
 from src.util import Action
+from line_profiler import LineProfiler
 
 class MWPM():
     def __init__(self, code):
         assert type(code) in (Toric_code, Planar_code), 'code has to be either Planar_code or Toric_code'
         self.code = code
+        self.code.syndrom()
         self.is_planar = (type(code) == Planar_code)
 
     # calculates shortest distance between two defects
     def get_shortest_distance(self, defect1, defect2):
         # Planar_code only cares about direct path
         if self.is_planar:
-            return manhattan_path(defect1, defect2).sum()
+            return manhattan_path(defect1, defect2).sum(axis=0)
 
         # Toric_code has to take periodic path into account
         else:
@@ -32,9 +34,9 @@ class MWPM():
             # Periodic path
             periodic_path = self.code.system_size - non_periodic_path
             # Minimum distance in each direction
-            shortest_path = np.min(non_periodic_path, periodic_path, axis=1)
+            shortest_path = np.minimum(non_periodic_path, periodic_path)
             # Total minimum distance
-            return shortest_path.sum()
+            return shortest_path.sum(axis=0)
 
 
     def generate_random_pairing(self, layer, edges):
@@ -91,10 +93,11 @@ class MWPM():
         nbr_edges = int(nbr_defects * (nbr_defects - 1) / 2)
 
         # list of single-valued arrays of decreasing length and increasing value
-        start_nodes, end_nodes = connect_all(nbr_defects)
+        start_nodes, end_nodes = connect_all(nbr_defects, 0)
 
-        distances = [self.get_shortest_distance(defect_coords[start_nodes[edge]], defect_coords[end_nodes[edge]])
-                for edge in range(nbr_edges)]
+        #distances = [self.get_shortest_distance(defect_coords[start_nodes[edge]], defect_coords[end_nodes[edge]])
+        #        for edge in range(nbr_edges)]
+        distances = self.get_shortest_distance(defect_coords[start_nodes], defect_coords[end_nodes])
 
         if self.is_planar:
             # Generate and interconnect nodes for virtual defects
@@ -103,12 +106,12 @@ class MWPM():
             ancilla_start, ancilla_end = connect_all(nbr_ancilla_nodes, nbr_defects)
 
             # put weight 0 on edges between ancilla defects
-            ancilla_distances = [0] * nbr_ancilla_edges
+            ancilla_distances = np.zeros(nbr_ancilla_edges)
 
             # connect every real defect to an ancillary defect
             border_start =     [0] * nbr_defects
             border_end =       [0] * nbr_defects
-            border_distances = [0] * nbr_defects
+            border_distances = np.zeros(nbr_defects)
             ancilla_sides = np.zeros(nbr_defects)
             for start in range(nbr_defects):
                 border_start[start] = start
@@ -125,7 +128,7 @@ class MWPM():
             # append lists of start nodes, end nodes and distances
             start_nodes += ancilla_start     + border_start
             end_nodes   += ancilla_end       + border_end
-            distances   += ancilla_distances + border_distances
+            distances = np.concatenate((distances, ancilla_distances, border_distances))
 
             # correct edge count
             nbr_edges += nbr_defects + nbr_ancilla_edges
@@ -134,7 +137,8 @@ class MWPM():
         edges = np.zeros((nbr_edges, 3))
         edges[:, 0] = np.array(start_nodes)
         edges[:, 1] = np.array(end_nodes)
-        edges[:, 2] = np.array(distances)
+        #edges[:, 2] = np.array(distances)
+        edges[:, 2] = distances
 
         if self.is_planar:
             return edges, nbr_nodes, ancilla_sides
@@ -160,23 +164,25 @@ class MWPM():
         nbr_edges = int(nbr_defects * (nbr_defects - 1) / 2)
 
         # list of single-valued arrays of decreasing length and increasing value
-        start_nodes, end_nodes = connect_all(nbr_defects)
+        start_nodes, end_nodes = connect_all(nbr_defects, 0)
 
         # list of distances between real defects
-        distances = [self.get_shortest_distance(defect_coords[start_nodes[edge]], defect_coords[end_nodes[edge]])
-                for edge in range(nbr_edges)]
+        distances = self.get_shortest_distance(defect_coords[start_nodes], defect_coords[end_nodes])
 
         # left/top or right/bottom border closest to each real defect
         border_0_distances = defect_coords[:, layer] + 1
         nearest_border = (border_0_distances * 2 > self.code.system_size).astype(int)
-        border_distances = [self.code.system_size - border_0_distances[s] if nearest_border[s] 
-                            else border_0_distances[s] for s in range(nbr_defects)]
+        border_distances = np.array([self.code.system_size - border_0_distances[s] if nearest_border[s] 
+                            else border_0_distances[s] for s in range(nbr_defects)])
 
         # number of ancilla nodes on left/top and right/bottom side
         nbr_ancilla_nodes = np.bincount(nearest_border, minlength=2)
 
         # number of edges added in special case where all defects are on the same border
         nbr_parity_edges = 0
+        parity_start = []
+        parity_end = []
+        parity_distances = np.empty(0, dtype=int)
         # if parity is 1, add nodes on both sides of plane
         if parity == 1:
             # border corresponding to each ancilla node
@@ -186,10 +192,10 @@ class MWPM():
                 # if a border has no connecting defects
                 if nbr_ancilla_nodes[b] == 0:
                     # add edges connecting all defects to a node representing the border
-                    start_nodes += [s for s in range(nbr_defects)]
+                    parity_start = [s for s in range(nbr_defects)]
                     # list of the index of the border node reapeted nbr_defects times
-                    end_nodes += [nbr_defects + (nbr_defects + 1) * b] * nbr_defects
-                    distances += [self.code.system_size - d for d in border_distances]
+                    parity_end = [nbr_defects + (nbr_defects + 1) * b] * nbr_defects
+                    parity_distances = self.code.system_size - border_distances
                     # update the exception ancilla node with the 'wrong' border
                     ancilla_sides[(nbr_defects + 1) * b] = b
                     nbr_parity_edges += nbr_defects
@@ -208,7 +214,7 @@ class MWPM():
             # Connect all ancilla defects on the top/left and right/bottom
             ancilla_start[b], ancilla_end[b] = connect_all(nbr_ancilla_nodes[b], nbr_defects + b * nbr_ancilla_nodes[0])
             # put weight 0 on edges between ancilla defects
-            ancilla_distances[b] = [0] * nbr_ancilla_edges[b]
+            ancilla_distances[b] = np.zeros(nbr_ancilla_edges[b])
 
         # connect all real defects with their corresponding ancilla defects
         border_start     = [0] * nbr_defects
@@ -223,9 +229,9 @@ class MWPM():
             ancilla_counts[b] += 1
 
         # append the lists of nodes with all the ancilla connections
-        start_nodes += ancilla_start[0]     + ancilla_start[1]     + border_start
-        end_nodes   += ancilla_end[0]       + ancilla_end[1]       + border_end
-        distances   += ancilla_distances[0] + ancilla_distances[1] + border_distances
+        start_nodes += parity_start + ancilla_start[0] + ancilla_start[1] + border_start
+        end_nodes   += parity_end   + ancilla_end[0]   + ancilla_end[1]   + border_end
+        distances = np.concatenate((distances, parity_distances, ancilla_distances[0], ancilla_distances[1], border_distances))
         # the number of edges is increased with all edges connecting to ancilla defects
         nbr_edges += nbr_defects + nbr_ancilla_edges[0] + nbr_ancilla_edges[1] + nbr_parity_edges
 
@@ -233,8 +239,7 @@ class MWPM():
         edges = np.zeros((nbr_edges, 3))
         edges[:, 0] = np.array(start_nodes)
         edges[:, 1] = np.array(end_nodes)
-        edges[:, 2] = np.array(distances)
-
+        edges[:, 2] = distances
         return edges, nbr_nodes, ancilla_sides
 
 
@@ -288,8 +293,8 @@ class MWPM():
             # horizontal. check if periodic distance is shorter
             if (right - left) * 2 > system_size:
                 # list of qubits connecting defects to periodic borders
-                horiz = [i + layer for i in range(0, left)]
-                horiz += [i + layer for i in range(right, system_size)]
+                horiz = [i for i in range(0, left + layer)]
+                horiz += [i for i in range(right + layer, system_size)]
             else:
                 # list of qubit directly connecting defect pair
                 horiz = [i + layer for i in range(left, right)]
@@ -400,7 +405,7 @@ class MWPM():
 
         # If on windows, the executable file ends in '.exe'
         blossomname = './src/blossom5-v2.05.src/blossom5'
-        if os.name == 'windows':
+        if not os.path.isfile(blossomname):
             blossomname += '.exe'
         # Run the blossom5 program as if from the terminal. The devnull part discards any prints from blossom5
         subprocess.call([blossomname, '-e', PATH, '-w', OUTPUT_PATH, '-V'], stdout=open(os.devnull, 'wb'))
@@ -428,7 +433,6 @@ class MWPM():
 
 
     def generate_classes(self):
-        assert type(self.code) == Planar_code, 'Corrections in different classes can only be generated for planar code'
         solution_list = [[None, None], [None, None]]
         class_chains = []
 
@@ -450,30 +454,32 @@ class MWPM():
             for layer1 in solution_list[1]:
                 class_chains.append(layer0 ^ layer1)
         return class_chains
-        
 
 
-# non periodic manhattan distance between defect at coord1 and coord2
-def manhattan_path(defect1, defect2):
-    x_distance = np.abs(defect1[0] - defect2[0])
-    y_distance = np.abs(defect1[1] - defect2[1])
-    return np.array([x_distance, y_distance])
+# non periodic manhattan distance between defect arrays
+@njit('(int64[:,:], int64[:,:])')
+def manhattan_path(start_defects, end_defects):
+    return np.abs(start_defects - end_defects).T
 
 
 # creates a list of edges connecting nbr_nodes nodes with indices starting at index_offset
-def connect_all(nbr_nodes, index_offset=0):
+@njit('(int64, int64)')
+def connect_all(nbr_nodes, index_offset):
     # list of lists where every node's index is repeated for every connection it 'starts'
     start = []
     # list of lists with the indices of every 'end' node corresponding to the 'start' nodes above
     end = []
     for i in range(nbr_nodes):
-        start += [i + index_offset] * (nbr_nodes - i - 1)
-        end += [j + index_offset for j in range(i + 1, nbr_nodes)]
+        # concats lists with 'extend' for numba to work
+        start.extend([i + index_offset] * (nbr_nodes - i - 1))
+        end.extend([j + index_offset for j in range(i + 1, nbr_nodes)])
 
     return start, end
 
-#@profile
+
+# Generates mwpm solutions in all 4 classes
 def class_sorted_mwpm(code):
+    assert type(code) == Planar_code, 'Corrections in different classes can only be generated for planar code'
     mwpm = MWPM(code)
     # generate unsorted list of error chains in all classes
     class_chains = mwpm.generate_classes()
@@ -486,6 +492,13 @@ def class_sorted_mwpm(code):
         sorted_classes[planar_chain.define_equivalence_class()] = planar_chain
 
     return sorted_classes
+
+
+# Runs 'optimal' mwpm with no class constraints
+def regular_mwpm(code):
+    mwpm = MWPM(code)
+    mwpm.solve()
+    return mwpm.code
 
 
 def main(args):
@@ -571,6 +584,23 @@ def main(args):
     np.savetxt(PATH_ground2, ground_state_kept_list, fmt='%e', comments='')
 
 
+def main2():
+    code = Planar_code(5)
+    code.generate_random_error(0.1)
+    code.plot('pre')
+    lp = LineProfiler()
+    #lp.add_function(MWPM.solve)
+    #lp.add_function(MWPM.generate_solution)
+    #lp.add_function(MWPM.generate_MWPM)
+    lp.add_function(MWPM.generate_edges)
+    lp.add_function(MWPM.get_shortest_distance)
+    lp.add_function(manhattan_path)
+    lp_wrapper = lp(regular_mwpm)
+    res = lp_wrapper(code)
+    lp.print_stats()
+    code.plot('post')
+
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    #main(sys.argv[1:])
+    main2()
 

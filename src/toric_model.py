@@ -250,7 +250,12 @@ class Toric_code():
         return perspective, action, reward, next_perspective, terminal
 
 
-    def plot_toric_code(self, state, title, eq_class=None):
+    # wrapper of plot_toric_code for consistency with plot() in planar_model
+    def plot(self, title, show_eq_class=None):
+        self.plot_toric_code(self.current_state, title, show_eq_class)
+
+
+    def plot_toric_code(self, state, title, show_eq_class=None):
         x_error_qubits1 = np.where(self.qubit_matrix[0,:,:] == 1)
         y_error_qubits1 = np.where(self.qubit_matrix[0,:,:] == 2)
         z_error_qubits1 = np.where(self.qubit_matrix[0,:,:] == 3)
@@ -313,8 +318,8 @@ class Toric_code():
         ax.plot(plaquette_defect_coordinates[1] + 0.5, -plaquette_defect_coordinates[0] - 0.5, 'o', color = 'red', label="flux", markersize=markersize_excitation)
         ax.axis('off')
 
-        if eq_class:
-            ax.set_title('Equivalence class: ' +  str(eq_class))
+        if show_eq_class:
+            ax.set_title('Equivalence class: ' +  str(show_eq_class))
 
         #plt.title(title)
         plt.axis('equal')
