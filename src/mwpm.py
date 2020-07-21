@@ -18,7 +18,6 @@ class MWPM():
     def __init__(self, code):
         assert type(code) in (Toric_code, Planar_code), 'code has to be either Planar_code or Toric_code'
         self.code = code
-        self.code.syndrom()
         self.is_planar = (type(code) == Planar_code)
 
     # calculates shortest distance between two defects
@@ -95,8 +94,6 @@ class MWPM():
         # list of single-valued arrays of decreasing length and increasing value
         start_nodes, end_nodes = connect_all(nbr_defects, 0)
 
-        #distances = [self.get_shortest_distance(defect_coords[start_nodes[edge]], defect_coords[end_nodes[edge]])
-        #        for edge in range(nbr_edges)]
         distances = self.get_shortest_distance(defect_coords[start_nodes], defect_coords[end_nodes])
 
         if self.is_planar:
@@ -333,7 +330,7 @@ class MWPM():
 
 
     # generates graph of defects in layer, runs blossom5 and generates a correction chain
-    def generate_solution(self, layer, parity=None, random_pairing=False):
+    def solve_layer(self, layer, parity=None, random_pairing=False):
         assert (parity in (None, 0, 1)), 'parity has to be None, 0 or 1'
 
         if parity is None:
@@ -423,13 +420,13 @@ class MWPM():
 
     # Solves syndrom with mwpm or random pairings
     def solve(self, random_pairing=False):
+        solution = np.zeros_like(self.code.qubit_matrix)
         for layer in range(2):
             if np.count_nonzero(self.get_layer(layer)) > 0:
                 # calculate correction and apply it
-                self.code.qubit_matrix ^= self.generate_solution(layer, random_pairing=random_pairing)
+                solution ^= self.solve_layer(layer, random_pairing=random_pairing)
 
-        # generate syndrom from applied correction
-        self.code.syndrom()
+        return solution
 
 
     def generate_classes(self):
@@ -440,7 +437,7 @@ class MWPM():
         for layer in range(2):
             if np.any(self.get_layer(layer)):
                 for parity in range(2):
-                    solution_list[layer][parity] = self.generate_solution(layer, parity)
+                    solution_list[layer][parity] = self.solve_layer(layer, parity)
                     
             else:
                 operator = (not layer) * 2 + 1
@@ -448,7 +445,6 @@ class MWPM():
                 solution_list[layer][0] = tmp.qubit_matrix
                 solution_list[layer][1], _ = tmp.apply_logical(operator)
         
-        #print(solution_list)
         # combine layer corrections of varying parities to get all equivalence classes
         for layer0 in solution_list[0]:
             for layer1 in solution_list[1]:
@@ -496,9 +492,13 @@ def class_sorted_mwpm(code):
 
 # Runs 'optimal' mwpm with no class constraints
 def regular_mwpm(code):
+    # create instance of mwpm class
     mwpm = MWPM(code)
-    mwpm.solve()
-    return mwpm.code
+    # make solution type the same as code type
+    code_solution = type(code)(code.system_size)
+    # generate solution matrix and store it in solution
+    code_solution.qubit_matrix = mwpm.solve()
+    return code_solution
 
 
 def main(args):
@@ -585,12 +585,12 @@ def main(args):
 
 
 def main2():
-    code = Planar_code(5)
+    code = Planar_code(6)
     code.generate_random_error(0.1)
     code.plot('pre')
     lp = LineProfiler()
     #lp.add_function(MWPM.solve)
-    #lp.add_function(MWPM.generate_solution)
+    #lp.add_function(MWPM.solve_layer)
     #lp.add_function(MWPM.generate_MWPM)
     lp.add_function(MWPM.generate_edges)
     lp.add_function(MWPM.get_shortest_distance)
@@ -598,6 +598,9 @@ def main2():
     lp_wrapper = lp(regular_mwpm)
     res = lp_wrapper(code)
     lp.print_stats()
+    #for i, c in enumerate(res):
+    #    c.syndrom()
+    #    c.plot('post' + str(i))
     code.plot('post')
 
 if __name__ == "__main__":
