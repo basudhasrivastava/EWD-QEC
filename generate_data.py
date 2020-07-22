@@ -122,11 +122,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "MWPM":
-            out = regular_mwpm(copy.deepcopy(init_code))
-            lens = np.zeros((4))
-            for j in range(4):
-                lens[j] = out[j].count_errors()
-            choice = np.argmin(lens)
+            choice = regular_mwpm(copy.deepcopy(init_code))
             df_eq_distr = np.zeros((4)).astype(np.uint8)
             df_eq_distr[choice] = 100
             if np.argmax(df_eq_distr) != eq_true:
@@ -160,6 +156,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
             df_list.clear()
             print('Intermediate save point reached (writing over)')
             df.to_pickle(file_path)
+            print('Failed so far:', failed_syndroms)
         
         # If the desired amount of errors have been achieved, break the loop and finish up
         if failed_syndroms == fixed_errors:
@@ -188,12 +185,12 @@ if __name__ == '__main__':
 
     params = {'code': "planar",
             'method': "eMWPM",
-            'size': 5,
+            'size': 25,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':4,
             'mwpm_init':False,
-            'fixed_errors':None,
+            'fixed_errors':2000,
             'Nc':None,
             'iters': 10,
             'conv_criteria': 'error_based',
