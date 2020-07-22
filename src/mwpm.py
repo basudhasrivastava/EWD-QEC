@@ -12,7 +12,6 @@ import random as rand
 from src.toric_model import *
 from src.planar_model import *
 from src.util import Action
-from line_profiler import LineProfiler
 
 class MWPM():
     def __init__(self, code):
@@ -499,7 +498,7 @@ def regular_mwpm(code):
     code_solution = type(code)(code.system_size)
     # generate solution matrix and store it in solution
     code_solution.qubit_matrix = mwpm.solve()
-    return code_solution
+    return code_solution.define_equivalence_class()
 
 
 def main(args):
