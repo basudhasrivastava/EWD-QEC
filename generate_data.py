@@ -121,6 +121,17 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
+        elif params['method'] == "MWPM":
+            out = regular_mwpm(copy.deepcopy(init_code))
+            lens = np.zeros((4))
+            for j in range(4):
+                lens[j] = out[j].count_errors()
+            choice = np.argmin(lens)
+            df_eq_distr = np.zeros((4)).astype(np.uint8)
+            df_eq_distr[choice] = 100
+            if np.argmax(df_eq_distr) != eq_true:
+                print('Failed syndrom, total now:', failed_syndroms)
+                failed_syndroms += 1
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
 
