@@ -14,7 +14,7 @@ from src.mwpm import *
 
 
 # This function generates training data with help of the MCMC algorithm
-def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
+def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_errors=None):
 
     if params['code'] == 'planar':
         nbr_eq_class = 4
@@ -41,10 +41,14 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
               + ' datapoins instead of ' + str(nbr_datapoints)
               + ', as the given number would overflow existing file')
 
+    if fixed_errors != None:
+        nbr_to_generate = 10000000
+    failed_syndroms = 0
+
     df_list = []  # Initiate temporary list
 
     # Loop to generate data points
-    for i in np.arange(nbr_to_generate) + nbr_existing_data:
+    for i in range(nbr_existing_data, nbr_existing_data + nbr_to_generate):
         print('Starting generation of point nr: ' + str(i + 1))
 
         # Initiate code
@@ -56,7 +60,8 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
             init_code.generate_random_error(params['p_error'])
  
         # Flatten initial qubit matrix to store in dataframe
-        df_qubit = copy.deepcopy(init_code.qubit_matrix.reshape((-1)))
+        df_qubit = copy.deepcopy(init_code.qubit_matrix)
+        eq_true = init_code.define_equivalence_class()
 
 
         
@@ -70,18 +75,30 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         if params['method'] == "PTEQ":
             df_eq_distr = PTEQ(init_code, params['p_error'])
+            if np.argmax(df_eq_distr) != eq_true:
+                print('Failed syndrom, total now:', failed_syndroms)
+                failed_syndroms += 1
         elif params['method'] == "STDC":
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
+            if np.argmax(df_eq_distr) != eq_true:
+                print('Failed syndrom, total now:', failed_syndroms)
+                failed_syndroms += 1
         elif params['method'] == "ST":
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr = single_temp(init_code, params['p_error'],params['steps'])
             df_eq_distr = np.array(df_eq_distr)
+            if np.argmin(df_eq_distr) != eq_true:
+                print('Failed syndrom, total now:', failed_syndroms)
+                failed_syndroms += 1
         elif params['method'] == "STRC":
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
+            if np.argmax(df_eq_distr) != eq_true:
+                print('Failed syndrom, total now:', failed_syndroms)
+                failed_syndroms += 1
         elif params['method'] == "all":
             #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr1 = single_temp(init_code, params['p_error'],params['steps'])
@@ -101,24 +118,22 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
             choice = np.argmin(lens)
             df_eq_distr = np.zeros((4)).astype(np.uint8)
             df_eq_distr[choice] = 100
-            print(df_eq_distr)
+            if np.argmax(df_eq_distr) != eq_true:
+                print('Failed syndrom, total now:', failed_syndroms)
+                failed_syndroms += 1
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
-        
 
         # Create indices for generated data
-        names = ['data_nr', 'layer', 'x', 'y']
-        index_qubit = pd.MultiIndex.from_product([[i], np.arange(2),
-                                                 np.arange(params['size']),
-                                                 np.arange(params['size'])],
+        names = ['data_nr', 'type']
+        index_qubit = pd.MultiIndex.from_product([[i], np.arange(1)],
                                                  names=names)
-        index_distr = pd.MultiIndex.from_product([[i], np.arange(nbr_eq_class)+2, [0],
-                                                 [0]], names=names)
+        index_distr = pd.MultiIndex.from_product([[i], np.arange(1)+1], names=names)
 
         # Add data to Dataframes
-        df_qubit = pd.DataFrame(df_qubit.astype(np.uint8), index=index_qubit,
+        df_qubit = pd.DataFrame([[df_qubit.astype(np.uint8)]], index=index_qubit,
                                 columns=['data'])
-        df_distr = pd.DataFrame(df_eq_distr,
+        df_distr = pd.DataFrame([[df_eq_distr]],
                                 index=index_distr, columns=['data'])
 
         # Add dataframes to temporary list to shorten computation time
@@ -134,6 +149,11 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6):
             df_list.clear()
             print('Intermediate save point reached (writing over)')
             df.to_pickle(file_path)
+        
+        # If the desired amount of errors have been achieved, break the loop and finish up
+        if failed_syndroms == fixed_errors:
+            print('Desired amount of failes syndroms achieved, breaking loop.')
+            break
 
     # Adds any remaining data from temporary list to data file when run is over
     if len(df_list) > 0:
@@ -157,11 +177,12 @@ if __name__ == '__main__':
 
     params = {'code': "planar",
             'method': "eMWPM",
-            'size':25,
+            'size': 5,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':4,
             'mwpm_init':False,
+            'fixed_errors':None,
             'Nc':None,
             'iters': 10,
             'conv_criteria': 'error_based',
@@ -173,14 +194,18 @@ if __name__ == '__main__':
     print(params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + 'test134.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=10000)
+    generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
     # View data file
     
     #iterator = MCMCDataReader(file_path, params['size'])
-    #while iterator.has_next():
-    #    print('Datapoint nr: ' + str(iterator.current_index() + 1))
-    #    print(iterator.next())
+    #data = iterator.full()
+    #for k in range(int(len(data)/2)):
+    #    qubit_matrix = data[2*k].reshape(2,params['size'],params['size'])
+    #    eq_distr = data[2*k+1]
+
+    #    print(qubit_matrix)
+    #    print(eq_distr)
