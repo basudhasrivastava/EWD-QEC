@@ -503,7 +503,7 @@ if __name__ == '__main__':
             t0 = time.time()
             distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
             print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            t0 = time.time()'''
+            t0 = time.time()
 
         tvd = sum(abs(distrs[1]-distrs[0]))
         mean_tvd += tvd

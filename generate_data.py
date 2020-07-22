@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
     params = {'code': "planar",
             'method': "eMWPM",
-            'size': 5,
+            'size':25,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':4,
@@ -173,7 +173,7 @@ if __name__ == '__main__':
     print(params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + 'special10drop1e4.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=10000)
