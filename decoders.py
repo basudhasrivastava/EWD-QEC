@@ -468,7 +468,7 @@ def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
 
 if __name__ == '__main__':
     t0 = time.time()
-    size = 5
+    size = 9
     steps = size ** 4
     print(steps)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
@@ -494,7 +494,7 @@ if __name__ == '__main__':
             #print('Try', i+1, ':', distrs[i], 'most_likeley_eq', np.argmax(distrs[i]), 'ground state:', ground_state)
 
             t0 = time.time()
-            v1 = single_temp(init_code, p=p_error, max_iters=steps)
+            v1 = single_temp(copy.deepcopy(class_init), p=p_error, max_iters=steps)
             print('Try single_temp', i+1, ':', v1, 'most_likely_eq', np.argmin(v1), 'ground state:', ground_state, 'time taken: ', time.time()-t0)
             t0 = time.time()
             distrs[i] = STDC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
