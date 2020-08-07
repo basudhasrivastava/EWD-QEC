@@ -435,7 +435,7 @@ def define_equivalence_class(qubit_matrix):
 
     return x1 + z1 * 2 + x2 * 4 + z2 * 8
 
-@njit
+@njit(cache=True)
 def _update_chain_fast(qubit_matrix, factor, iters):
     for _ in range(iters):
         new_matrix, qubit_errors_change =  _apply_random_stabilizer(qubit_matrix)
