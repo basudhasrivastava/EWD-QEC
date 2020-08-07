@@ -392,7 +392,7 @@ class MWPM():
 
         # builds arguments for the bloosom5 program
         processId = os.getpid()
-        PATH_PREFIX = os.getenv('TMPDIR') + '/'
+        PATH_PREFIX = './'#os.getenv('TMPDIR') + '/'
         PATH = PATH_PREFIX + str(processId) + 'edges.TXT'
         OUTPUT_PATH = PATH_PREFIX + str(processId) +'output.TXT'
 

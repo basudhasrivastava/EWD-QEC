@@ -3,9 +3,9 @@ import random as rand
 import copy
 import collections
 
-from numba import jit, njit
+from numba import jit, prange, njit
 from .toric_model import Toric_code
-from .planar_model import Planar_code
+from .planar_model import Planar_code, _apply_random_stabilizer
 from .util import Action
 import pandas as pd
 
@@ -51,6 +51,9 @@ class Chain:
                 # acceptence ratio
                 if rand.random() < self.factor ** qubit_errors_change:
                     self.code.qubit_matrix = new_matrix
+        
+    def update_chain_fast(self, iters):
+        self.code.qubit_matrix = _update_chain_fast(self.code.qubit_matrix, self.factor, iters)
 
 
 class Ladder:
@@ -431,3 +434,13 @@ def define_equivalence_class(qubit_matrix):
     z2 = z2 % 2
 
     return x1 + z1 * 2 + x2 * 4 + z2 * 8
+
+@njit
+def _update_chain_fast(qubit_matrix, factor, iters):
+    for _ in range(iters):
+        new_matrix, qubit_errors_change =  _apply_random_stabilizer(qubit_matrix)
+
+        # acceptence ratio
+        if rand.random() < factor ** qubit_errors_change:
+            qubit_matrix = new_matrix
+    return qubit_matrix

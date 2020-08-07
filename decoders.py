@@ -13,6 +13,8 @@ from src.mwpm import class_sorted_mwpm
 import pandas as pd
 import time
 
+from tqdm import tqdm
+
 from math import log, exp
 from multiprocessing import Pool, cpu_count
 from operator import itemgetter
@@ -127,7 +129,7 @@ def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_b
 
     for eq in range(nbr_eq_classes):
         for j in range(max_iters):
-            ladder[eq].update_chain(5)
+            ladder[eq].update_chain_fast(5)
             nbr_errors_chain[eq ,j] = ladder[eq].code.count_errors()
             if j == max_iters-1:
                 mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
@@ -242,11 +244,10 @@ def STDC_droplet(input_data_tuple):
 
     # Do the metropolis steps and add to samples if new chains are found
     for _ in range(int(steps)):
-        chain.update_chain(5)
+        chain.update_chain_fast(5)
         key = hash(chain.code.qubit_matrix.tobytes())
         if key not in samples:
             samples[hash(key)] = chain.code.count_errors()
-
     return samples
 
 
@@ -448,7 +449,7 @@ def STRC_droplet(input_data_tuple):
     # Generate chains
     for step in range(steps):
         # Do metropolis sampling
-        chain.update_chain(5)
+        chain.update_chain_fast(5)
         #print(len(short_unique[1]))
         # Convert the current qubit matrix to string for hashing
         key = hash(chain.code.qubit_matrix.tobytes())
@@ -630,17 +631,17 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
 
 if __name__ == '__main__':
     t0 = time.time()
-    size = 15
-    steps = 10000 * int(1 + (size / 5) ** 4)
+    size = 5
+    steps = size ** 4
     print(steps)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
-    p_error = 0.05
-    p_sampling = 0.50
+    p_error = 0.20
+    p_sampling = 0.25
     init_code = Planar_code(size)
     tries = 2
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
     mean_tvd = 0.0
-    for i in range(100):
+    for i in range(10):
         init_code.generate_random_error(p_error)
         ground_state = init_code.define_equivalence_class()
         
@@ -656,7 +657,10 @@ if __name__ == '__main__':
             v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            v1 = single_temp(init_code, p=p_error, max_iters=steps)
+            print('Try single_temp', i+1, ':', v1, 'most_likely_eq', np.argmin(v1), 'ground state:', ground_state, 'time taken: ', time.time()-t0)
+            t0 = time.time()
+            distrs[i] = STDC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
             distrs[i] = STRC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
