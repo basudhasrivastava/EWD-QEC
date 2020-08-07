@@ -392,7 +392,7 @@ class MWPM():
 
         # builds arguments for the bloosom5 program
         processId = os.getpid()
-        PATH_PREFIX = os.getenv('TMPDIR') + '/'
+        PATH_PREFIX = './'#os.getenv('TMPDIR') + '/'
         PATH = PATH_PREFIX + str(processId) + 'edges.TXT'
         OUTPUT_PATH = PATH_PREFIX + str(processId) +'output.TXT'
 
@@ -402,6 +402,7 @@ class MWPM():
 
         # If on windows, the executable file ends in '.exe'
         blossomname = '/cephyr/users/hamkarl/Vera/MCMC-QEC-toric-RL/src/blossom5-v2.05.src/blossom5'
+        blossomname = 'src/blossom5-v2.05.src/blossom5'
         if os.name == 'windows':
             blossomname += '.exe'
         # Run the blossom5 program as if from the terminal. The devnull part discards any prints from blossom5
