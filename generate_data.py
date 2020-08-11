@@ -149,7 +149,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
         
-        if (i + 1) % 10000 == 0:
+        if (i + 1) % 10000 == 0: # this needs to be sufficiently big that rsync has time to sync files before update, maybe change this to be time-based instead.
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -171,36 +171,36 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
 
 
 if __name__ == '__main__':
-
-    # Get job array id, set working directory, set timer
+    # Get job array id, working directory
     try:
-        array_id = str(sys.argv[1])
-        local_dir = str(sys.argv[2])
+        array_id = os.getenv('SLURM_ARRAY_TASK_ID')
+        local_dir = os.getenv('TMPDIR')
     except:
         array_id = '0'
         local_dir = '.'
-        print('invalid sysargs')
+        print('Invalid environment variables, using array_id 0 and local dir.')
 
     params = {'code': "planar",
-            'method': "MWPM",
+            'method': "PTEQ",
             'size': 9,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':1,
             'mwpm_init':False,
-            'fixed_errors':None,
+            'fixed_errors':2000,
             'Nc':None,
             'iters': 10,
             'conv_criteria': 'error_based',
             'SEQ': 2,
             'TOPS': 10,
             'eps': 0.1}
+    # Steps is a function of code size L
     params.update({'steps': int(params['size'] ** 4)})
 
-    print(params['steps'])
+    print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '2000errExactL4steps.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '2000err.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
