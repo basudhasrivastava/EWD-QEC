@@ -70,6 +70,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
             print('Starting in MWPM state')
         else: #randomize input matrix, no trace of seed.
             init_code.qubit_matrix, _ = init_code.apply_random_logical()
+            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             print('Starting in random state')
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
@@ -79,21 +80,18 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "STDC":
-            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "ST":
-            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr = single_temp(init_code, params['p_error'],params['steps'])
             df_eq_distr = np.array(df_eq_distr)
             if np.argmin(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "STRC":
-            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             df_eq_distr = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
             if np.argmax(df_eq_distr) != eq_true:
@@ -151,7 +149,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
         
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 10000 == 0:
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -184,25 +182,25 @@ if __name__ == '__main__':
         print('invalid sysargs')
 
     params = {'code': "planar",
-            'method': "eMWPM",
-            'size': 25,
+            'method': "MWPM",
+            'size': 9,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
-            'droplets':4,
+            'droplets':1,
             'mwpm_init':False,
-            'fixed_errors':2000,
+            'fixed_errors':None,
             'Nc':None,
             'iters': 10,
             'conv_criteria': 'error_based',
             'SEQ': 2,
             'TOPS': 10,
             'eps': 0.1}
-    params.update({'steps': int((10000 * (params['size'] / 5) ** 4))})
+    params.update({'steps': int(params['size'] ** 4)})
 
     print(params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '2000err.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '2000errExactL4steps.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
