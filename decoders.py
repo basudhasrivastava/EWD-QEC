@@ -46,7 +46,8 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
     eq = np.zeros([steps, nbr_eq_classes], dtype=np.uint32)  # list of class counts after burn in
 
     # used in error_based/majority_based instead of setting tops0 = TOPS
-    tops_change = 0
+    conv_start = 0
+    conv_streak = 0
 
     # Convergence flag
     convergence_reached = False
@@ -97,20 +98,22 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
             resulting_burn_in += 1
 
         # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
-        if not convergence_reached and tops0 >= TOPS:
-            if conv_criteria == 'error_based':
-                tops_accepted = tops0 - tops_change
-                accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted, SEQ, eps)
-                if not accept:
-                    tops_change = tops0
-        if convergence_reached:
-            break
+        if conv_criteria == 'error_based' and tops0 >= TOPS:
+            accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, conv_streak, SEQ, eps)
+            if accept:
+                if convergence_reached:
+                    break
+                conv_streak = tops0 - conv_start
+            else:
+                conv_streak = 0
+                conv_start = tops0
     
     # print warining if max nbr steps are reached before convergence
     if j + 1 == steps and conv_criteria == 'error_based':
         print('\n\nWARNING: PTEQ hit maxnbr steps before convergence:\t', j + 1, '\n\n')
 
     return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
+
 
 @njit(cache=True) # r_flip calculates the quotient called r_flip in paper
 def r_flip(qubit_lo, p_lo, qubit_hi, p_hi):
