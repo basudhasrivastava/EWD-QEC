@@ -13,6 +13,7 @@ from src.toric_model import *
 from src.planar_model import *
 from src.util import Action
 
+
 class MWPM():
     def __init__(self, code):
         assert type(code) in (Toric_code, Planar_code), 'code has to be either Planar_code or Toric_code'
@@ -402,8 +403,7 @@ class MWPM():
 
         # If on windows, the executable file ends in '.exe'
         blossomname = '/cephyr/users/hamkarl/Vera/MCMC-QEC-toric-RL/src/blossom5-v2.05.src/blossom5'
-        if os.name == 'windows':
-            blossomname += '.exe'
+        
         # Run the blossom5 program as if from the terminal. The devnull part discards any prints from blossom5
         subprocess.call([blossomname, '-e', PATH, '-w', OUTPUT_PATH, '-V'], stdout=open(os.devnull, 'wb'))
 
