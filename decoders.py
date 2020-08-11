@@ -13,8 +13,6 @@ from src.mwpm import class_sorted_mwpm
 import pandas as pd
 import time
 
-from tqdm import tqdm
-
 from math import log, exp
 from multiprocessing import Pool, cpu_count
 from operator import itemgetter
