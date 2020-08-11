@@ -46,7 +46,8 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
     eq = np.zeros([steps, nbr_eq_classes], dtype=np.uint32)  # list of class counts after burn in
 
     # used in error_based/majority_based instead of setting tops0 = TOPS
-    tops_change = 0
+    conv_start = 0
+    conv_streak = 0
 
     # Convergence flag
     convergence_reached = False
@@ -97,20 +98,22 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
             resulting_burn_in += 1
 
         # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
-        if not convergence_reached and tops0 >= TOPS:
-            if conv_criteria == 'error_based':
-                tops_accepted = tops0 - tops_change
-                accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted, SEQ, eps)
-                if not accept:
-                    tops_change = tops0
-        if convergence_reached:
-            break
+        if conv_criteria == 'error_based' and tops0 >= TOPS:
+            accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, conv_streak, SEQ, eps)
+            if accept:
+                if convergence_reached:
+                    break
+                conv_streak = tops0 - conv_start
+            else:
+                conv_streak = 0
+                conv_start = tops0
     
     # print warining if max nbr steps are reached before convergence
     if j + 1 == steps and conv_criteria == 'error_based':
         print('\n\nWARNING: PTEQ hit maxnbr steps before convergence:\t', j + 1, '\n\n')
 
     return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
+
 
 @njit # r_flip calculates the quotient called r_flip in paper
 def r_flip(qubit_lo, p_lo, qubit_hi, p_hi):
@@ -472,11 +475,11 @@ def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
 
 if __name__ == '__main__':
     t0 = time.time()
-    size = 5
+    size = 7
     steps = 10000 * int(1 + (size / 5) ** 4)
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
-    p_error = 0.1
-    p_sampling = 0.1
+    p_error = 0.15
+    p_sampling = 0.15
     init_code = Planar_code(size)
     tries = 2
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
@@ -494,10 +497,8 @@ if __name__ == '__main__':
         print('################ Chain', i+1 , '###################')
 
         for i in range(tries):
-            #print('Try', i+1, ':', distrs[i], 'most_likeley_eq', np.argmax(distrs[i]), 'ground state:', ground_state)
-
-            #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
-            #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
+            v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
+            print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
             distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
@@ -508,11 +509,3 @@ if __name__ == '__main__':
             distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
             print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
-
-        tvd = sum(abs(distrs[1]-distrs[0]))
-        mean_tvd += tvd
-        print('TVD:', tvd)
-    print('Mean TVD:', mean_tvd / 10)
-
-        #print('STRC distribution 1:', distr1)
-        #print('STRC distribution 2:', distr2)
