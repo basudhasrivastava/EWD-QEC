@@ -182,7 +182,7 @@ if __name__ == '__main__':
 
     params = {'code': "planar",
             'method': "PTEQ",
-            'size': 9,
+            'size': 15,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':1,
