@@ -624,6 +624,7 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
         Z_e = sum([m * exp(-beta_sampling * shortest + d_beta * l) for l, m in len_counts.items()]) * mean_fraction
         Z_arr[eq] = Z_e
 
+    # Use boltzmann factors as relative probabilities and normalize distribution
     return (Z_arr / np.sum(Z_arr) * 100)
 
 
