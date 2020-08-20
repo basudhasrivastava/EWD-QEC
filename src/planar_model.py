@@ -211,6 +211,12 @@ def _apply_random_logical(qubit_matrix):
 
 @njit('(uint8[:,:,:], int64, int64, int64)')
 def _apply_stabilizer(qubit_matrix, row, col, operator):
+    # gives the resulting qubit error matrix from applying (row, col, operator) stabilizer
+    # doesn't update input qubit_matrix
+    size = qubit_matrix.shape[1]
+
+    if operator == 1:
+        # Special cases depending on where the stabilizer lives (square/triangle - in the middle/on the boundary)
         if col == 0:
             qubit_matrix_layers = np.array([0, 0, 1])
             rows = np.array([row, row + 1, row])
@@ -293,6 +299,9 @@ def _apply_stabilizers_uniform(qubit_matrix, p=0.5):
 
 @njit('(uint8[:,:,:],)')
 def _define_equivalence_class(qubit_matrix):
+    # of x errors in the first column
+    x_errors = np.count_nonzero(qubit_matrix[0,:,0]==1)
+    x_errors += np.count_nonzero(qubit_matrix[0,:,0]==2)
 
     # of z errors in the first row
     z_errors = np.count_nonzero(qubit_matrix[0,0,:]==3)
@@ -300,6 +309,8 @@ def _define_equivalence_class(qubit_matrix):
 
     # return the parity of the calculated #'s of errors
     return (x_errors % 2) + 2 * (z_errors % 2)
+
+
 
 
 @njit('(int64, uint8[:,:,:])')

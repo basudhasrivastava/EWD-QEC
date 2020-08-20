@@ -72,15 +72,15 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
             resulting_burn_in += 1
 
         # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
-        if conv_criteria == 'error_based' and tops0 >= TOPS:
+        if conv_criteria == 'error_based' and ladder.tops0 >= TOPS:
             accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, conv_streak, SEQ, eps)
             if accept:
                 if convergence_reached:
                     break
-                conv_streak = tops0 - conv_start
+                conv_streak = ladder.tops0 - conv_start
             else:
                 conv_streak = 0
-                conv_start = tops0
+                conv_start = ladder.tops0
     
     # print warining if max nbr steps are reached before convergence
     if j + 1 == steps and conv_criteria == 'error_based':
@@ -105,7 +105,7 @@ def conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted,
         return False, False
 
 
-def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_based'):
+def single_temp(init_code, p, max_iters):
     # check if init_code is provided as a list of inits for different classes
     if type(init_code) == list:
         nbr_eq_classes = init_code[0].nbr_eq_classes
@@ -652,16 +652,14 @@ if __name__ == '__main__':
         print('################ Chain', i+1 , '###################')
         
         for i in range(tries):
-            v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
-            print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
             v1 = single_temp(copy.deepcopy(class_init), p=p_error, max_iters=steps)
             print('Try single_temp', i+1, ':', v1, 'most_likely_eq', np.argmin(v1), 'ground state:', ground_state, 'time taken: ', time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            distrs[i] = STDC(copy.deepcopy(class_init), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STRC(copy.deepcopy(class_init), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            distrs[i] = STRC(copy.deepcopy(class_init), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
             distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
