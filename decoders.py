@@ -72,15 +72,15 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
             resulting_burn_in += 1
 
         # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
-        if conv_criteria == 'error_based' and tops0 >= TOPS:
+        if conv_criteria == 'error_based' and ladder.tops0 >= TOPS:
             accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, conv_streak, SEQ, eps)
             if accept:
                 if convergence_reached:
                     break
-                conv_streak = tops0 - conv_start
+                conv_streak = ladder.tops0 - conv_start
             else:
                 conv_streak = 0
-                conv_start = tops0
+                conv_start = ladder.tops0
     
     # print warining if max nbr steps are reached before convergence
     if j + 1 == steps and conv_criteria == 'error_based':
@@ -247,23 +247,35 @@ def PTDC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, 
 def STDC_droplet(input_data_tuple):
     # All unique chains will be saved in samples
     samples = {}
-    chain, steps, randomize = input_data_tuple
+    chain, steps, randomize, conv_mult = input_data_tuple
+
+    # Convergence variables
+    stop = steps
+    shortest = 2 * chain.code.system_size ** 2
 
     # Start in high energy state
     if randomize:
         chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
 
     # Do the metropolis steps and add to samples if new chains are found
-    for _ in range(int(steps)):
+    for step in range(int(steps)):
         chain.update_chain(5)
         key = hash(chain.code.qubit_matrix.tobytes())
         if key not in samples:
-            samples[key] = chain.code.count_errors()
+            length = chain.code.count_errors()
+            samples[key] = length
+            if conv_mult and length < shortest:
+                shortest = length
+                stop = step * conv_mult
+        
+        if conv_mult and step >= stop and step * 100 >= steps:
+            print('STDC converged after {} steps. Shortest: {}'.format(step, shortest))
+            break
 
     return samples
 
 
-def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
+def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mult=2.0):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
 
@@ -301,10 +313,10 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
         chain = eq_chains[eq]
 
         if droplets == 1:
-            qubitlist = STDC_droplet((copy.deepcopy(chain), steps, randomize))
+            qubitlist = STDC_droplet((copy.deepcopy(chain), steps, randomize, conv_mult))
         else:
             with Pool(droplets) as pool:
-                output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps, randomize) for _ in range(droplets)])
+                output = pool.map(STDC_droplet, [(copy.deepcopy(chain), steps, randomize, conv_mult) for _ in range(droplets)])
                 for j in range(droplets):
                     qubitlist.update(output[j])
 
@@ -441,7 +453,7 @@ def PTRC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, 
 
 
 def STRC_droplet(input_data_tuple):
-    chain, steps, max_length, eq, randomize = input_data_tuple
+    chain, steps, max_length, eq, randomize, conv_mult = input_data_tuple
     unique_lengths = {}
     len_counts = {}
 
@@ -453,6 +465,9 @@ def STRC_droplet(input_data_tuple):
     # Variables to easily keep track of the length of chains in short_unique
     shortest = max_length
     next_shortest = max_length
+
+    # Convergence variable
+    stop = steps
     
     # Apply random stabilizers to start in high temperature state
     if randomize:
@@ -507,6 +522,8 @@ def STRC_droplet(input_data_tuple):
                     # And the current length is the new shortest
                     short_unique[0].clear()
                     short_unique[0][key] = length
+
+                    stop = step * conv_mult if conv_mult else stop
                 
                 # Otherwise, check if this chain is shorter than previous next shortest chain
                 elif length < next_shortest:
@@ -517,10 +534,14 @@ def STRC_droplet(input_data_tuple):
                     short_unique[1].clear()
                     short_unique[1][key] = length
 
+        if conv_mult and step >= stop and step * 100 >= steps:
+            print('STRC converged after {} steps. Shortest: {}'.format(step, shortest))
+            break
+
     return unique_lengths, len_counts, short_unique
 
  
-def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
+def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mult=2.0):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
 
@@ -562,12 +583,12 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
 
         # Start parallel processes with droplets.
         if droplets == 1:
-            unique_lengths, len_counts, short_unique = STRC_droplet((copy.deepcopy(chain), steps, max_length, eq, randomize))
+            unique_lengths, len_counts, short_unique = STRC_droplet((copy.deepcopy(chain), steps, max_length, eq, randomize, conv_mult))
             shortest = next(iter(short_unique[0].values()))
             next_shortest = next(iter(short_unique[1].values()))
         else:
             with Pool(droplets) as pool:
-                output = pool.map(STRC_droplet, [(copy.deepcopy(chain), steps, max_length, eq, randomize) for _ in range(droplets)])
+                output = pool.map(STRC_droplet, [(copy.deepcopy(chain), steps, max_length, eq, randomize, conv_mult) for _ in range(droplets)])
 
             # We need to combine the results from all raindrops
             unique_lengths = {}
@@ -636,21 +657,20 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
 
 if __name__ == '__main__':
     t0 = time.time()
-    size = 7
-    steps = 10000 * int(1 + (size / 5) ** 4)
+    size = 9
+    steps = 10 * size ** 4
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
-    p_error = 0.15
-    p_sampling = 0.15
+    p_error = 0.10
+    p_sampling = 0.30
     init_code = Planar_code(size)
-    tries = 2
+    tries = 1
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
-    mean_tvd = 0.0
 
     #from line_profiler import LineProfiler
     #lp = LineProfiler()
     #lp_wrapper = lp(STRC)
 
-    for i in range(1):
+    for i in range(4):
         init_code.generate_random_error(p_error)
         ground_state = init_code.define_equivalence_class()
         
@@ -663,15 +683,16 @@ if __name__ == '__main__':
         print('################ Chain', i+1 , '###################')
 
         for i in range(tries):
-            v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
-            print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
+            #t0 = time.time()
+            #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
+            #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            distrs[i] = STDC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=3)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=3)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            t0 = time.time()
-            distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
-            print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            t0 = time.time()
+            #t0 = time.time()
+            #distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
+            #print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
+
