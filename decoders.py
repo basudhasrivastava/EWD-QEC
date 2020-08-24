@@ -314,7 +314,7 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
                 for j in range(droplets):
                     qubitlist.update(output[j])
 
-        # compute Z_E        
+        # compute Z_E
         for key in qubitlist:
             eqdistr[eq] += exp(-beta * qubitlist[key])
         qubitlist.clear()
@@ -426,12 +426,16 @@ def PTRC(init_code, p_error, p_sampling=None, Nc=None, steps=20000, conv_mult=2.
             sorted_counts = sorted(len_counts_ladder[i].items(), key=itemgetter(0))
             # make length and count array from sorted list
             lengths, counts = [np.array(lst) for lst in zip(*sorted_counts)]
-            # calculate C estimate for each length, count pair
-            C_ests = counts[:, 0] / counts[:, 1] * np.exp(-beta_ladder[i] * (lengths - lengths[0]))
-            # remove outlier estimates
-            tmp = C_ests[C_ests * 2 > C_ests[0]]
-            # calculate final estimate
-            C_mean = np.sqrt(np.mean(np.square(tmp))) # Root mean square so the average is "top-weighted"
+            
+            ## calculate C estimate for each length, count pair
+            #C_ests = counts[:, 0] / counts[:, 1] * np.exp(-beta_ladder[i] * (lengths - lengths[0]))
+            ## remove outlier estimates
+            #tmp = C_ests[C_ests * 2 > C_ests[0]]
+            ## calculate final estimate
+            #C_mean = np.sqrt(np.mean(np.square(tmp))) # Root mean square so the average is "top-weighted"
+            
+            C_mean = np.mean(counts[:2, 0] / counts[:2, 1] * np.exp(-beta_ladder[i] * (lengths[:2] - lengths[0])))
+
             # calculate boltzmann factor from C estimate
             Z_est = C_mean * (counts[:, 1] * np.exp(lengths * d_beta[i] - beta_ladder[i] * lengths[0])).sum()
             # Accumulate boltzmann factor for equivalence class
