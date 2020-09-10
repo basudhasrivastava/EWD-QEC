@@ -157,7 +157,36 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
     return error < eps
 
 
-def PTDC(init_code, p_error, p_sampling=None, Nc=None, steps=20000, conv_mult=2.0):
+def PTDC_droplet(ladder, steps, iters, conv_mult):
+    samples = {}
+    shortest = 2 * ladder.chains[0].code.system_size ** 2
+    for step in range(steps):
+        # do mcmc iterations and perform swaps
+        ladder.step(iters)
+        # iterate through chain ladder, record observations
+        for chain in ladder.chains:
+            # hash error chain for reduced memory usage
+            key = hash(chain.code.qubit_matrix.tobytes())
+            # check if the error chain has been seen before
+            if not key in samples:
+                # otherwise, calculate its length
+                length = chain.code.count_errors()
+                samples[key] = length
+                
+                # if new shortest chain found, extend sampling time
+                if conv_mult and length <= shortest:
+                    shortest[eq] = length
+                    stop = step * conv_mult
+
+        # if no new shortest chain found, end sampling
+        if conv_mult and step >= stop and step * 100 >= steps:
+            conv_step[eq] = step
+            break
+
+    return samples
+
+
+def PTDC(init_code, p_error, p_sampling=None, droplets=4, Nc=None, steps=20000, conv_mult=2.0):
     p_sampling = p_sampling or p_error
     iters = 10
 
@@ -202,8 +231,21 @@ def PTDC(init_code, p_error, p_sampling=None, Nc=None, steps=20000, conv_mult=2.
     # error-model
     beta = -log((p_error / 3) / (1 - p_error))
 
+    # initiate worker pool
+    if droplets > 1:
+        pool = Pool(droplets)
+
     # Do mcmc sampling, one class at a time
     for eq in range(nbr_eq_classes):
+        if droplets == 1:
+            qubitlist = PTDC_droplet(eq_ladders[eq], steps, iters, conv_mult)
+        else:
+            args = [(copy.deepcopy(eq_ladders[eq]), steps, iters, conv_mult) for _ in range(droplets)]
+            output = pool.starmap_async(PTDC_droplet, args)
+            for res in output.get():
+                qubitlist.update(res)
+
+        '''
         for step in range(steps):
             # do mcmc iterations and perform swaps
             eq_ladders[eq].step(iters)
@@ -226,6 +268,7 @@ def PTDC(init_code, p_error, p_sampling=None, Nc=None, steps=20000, conv_mult=2.
             if conv_mult and step >= stop and step * 100 >= steps:
                 conv_step[eq] = step
                 break
+        '''
 
         # mcmc sampling for class is finished. calculate boltzmann factor
         for key in qubitlist:
@@ -323,7 +366,61 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
 
-def PTRC(init_code, p_error, p_sampling=None, Nc=None, steps=20000, conv_mult=2.0):
+def PTRC_droplet(ladder, steps, iters, conv_mult):
+
+    shortest = 2 * ladder.chains[0].code.system_size ** 2
+
+    # ladder of lengths of qubit matrices
+    unique_lengths_ladder = [{} for _ in range(ladder.Nc)]
+    # ladder of observations of qubit matrix lengths
+    len_counts_ladder = [{} for _ in range(ladder.Nc)]
+
+    for step in range(steps):
+        # do mcmc iterations and perform swaps
+        ladder.step(iters)
+        # iterate through ladder, recording chains observations
+        for i, chain in enumerate(ladder.chains):
+            unique_lengths = unique_lengths_ladder[i]
+            len_counts = len_counts_ladder[i]
+            # hash qubit matrix to reduce memory usage
+            key = hash(chain.code.qubit_matrix.tobytes())
+            # check if chain has been observed before
+            if key in unique_lengths:
+                # if so, read it's length from dict
+                length = unique_lengths[key]
+                # increment m(n)
+                len_counts[length][1] += 1
+
+            else:
+                # otherwise, calculate length
+                length = chain.code.count_errors()
+                # update dict of observed chains
+                unique_lengths[key] = length
+                # check if chain of this length was observed before
+                if length in len_counts:
+                    # increment N(n)
+                    len_counts[length][0] += 1
+                    # increment m(n)
+                    len_counts[length][1] += 1
+
+                else:
+                    # initialize N(n) and m(n)
+                    len_counts[length] = [1, 1]
+
+                # if new shortest chain found, extend sampling time
+                if conv_mult and length <= shortest:
+                    shortest = length
+                    stop = step * conv_mult
+        
+        # if no new shortest chain found, end sampling
+        if conv_mult and step >= stop and step * 100 >= steps:
+            conv_step[eq] = step
+            break
+    
+    return unique_lengths_ladder, len_counts_ladder
+
+
+def PTRC(init_code, p_error, p_sampling=None, droplets=4, Nc=None, steps=20000, conv_mult=2.0):
     p_sampling = p_sampling or p_error
     iters = 10
 
@@ -371,8 +468,38 @@ def PTRC(init_code, p_error, p_sampling=None, Nc=None, steps=20000, conv_mult=2.
     # Array to hold the boltzmann factors for every class
     Z_arr = np.zeros(nbr_eq_classes)
 
+    # initiate worker pool
+    if droplets > 1:
+        pool = Pool(droplets)
+
     # do mcmc sampling, one class at a time
     for eq in range(nbr_eq_classes):
+
+        if droplets == 1:
+            unique_lengths_ladder, len_counts_ladder = PTDC_droplet(eq_ladders[eq], steps, iters, conv_mult)
+        else:
+            # ladder of lengths of qubit matrices
+            unique_lengths_ladder = [{} for _ in range(Nc)]
+            # ladder of observations of qubit matrix lengths
+            len_counts_ladder = [{} for _ in range(Nc)]
+
+            args = [(copy.deepcopy(eq_ladders[eq]), steps, iters, conv_mult) for _ in range(droplets)]
+            output = pool.starmap_async(PTDC_droplet, args)
+
+            # combine outputs
+            for res in output.get():
+                # iterate ladder
+                for i in range(Nc):
+                    unique_lengths_ladder[i].update(res[0])
+                    # iterate output unique_lengths dictionary
+                    for length, counts in res[1].items:
+                        # aggregate or init length counter
+                        if length in len_counts_ladder[i]:
+                            len_counts_ladder[i][length] += counts
+                        else:
+                            len_counts_ladder[i][length] = counts
+
+        '''
         # ladder of lengths of qubit matrices
         unique_lengths_ladder = [{} for _ in range(Nc)]
         # ladder of observations of qubit matrix lengths
@@ -419,6 +546,7 @@ def PTRC(init_code, p_error, p_sampling=None, Nc=None, steps=20000, conv_mult=2.
             if conv_mult and step >= stop and step * 100 >= steps:
                 conv_step[eq] = step
                 break
+        '''
         
         # iterate through all but top chain in ladder
         for i in range(Nc - 1):
@@ -690,13 +818,13 @@ if __name__ == '__main__':
             #t0 = time.time()
             #distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=3)
             #print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            #t0 = time.time()
+            #distrs[i] = PTEQ(copy.deepcopy(mwpm_init), p=p_error)
+            #print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
             t0 = time.time()
-            distrs[i] = PTEQ(copy.deepcopy(mwpm_init), p=p_error)
-            print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            t0 = time.time()
-            distrs[i], conv_step = PTDC(copy.deepcopy(class_init), p_error=p_error)
+            distrs[i], conv_step = PTDC(copy.deepcopy(class_init), p_error=p_error, droplets=4)
             print('Try PTDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'convergence:', conv_step, 'time:', time.time()-t0)
-            t0 = time.time()
-            distrs[i], conv_step = PTRC(copy.deepcopy(class_init), p_error=p_error)
-            print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'convergence:', conv_step, 'time:', time.time()-t0)
+            #t0 = time.time()
+            #distrs[i], conv_step = PTRC(copy.deepcopy(class_init), p_error=p_error)
+            #print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'convergence:', conv_step, 'time:', time.time()-t0)
 
