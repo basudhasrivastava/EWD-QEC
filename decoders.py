@@ -17,6 +17,7 @@ from math import log, exp
 from multiprocessing import Pool
 from operator import itemgetter
 
+
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 # steps has an upper limit on 50 000 000, which should not be met during operation
@@ -103,7 +104,7 @@ def conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted,
         return False, False
 
 
-def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_based'):
+def single_temp(init_code, p, max_iters):
     # check if init_code is provided as a list of inits for different classes
     if type(init_code) == list:
         nbr_eq_classes = init_code[0].nbr_eq_classes
@@ -121,40 +122,16 @@ def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_b
             ladder[eq].code.qubit_matrix = ladder[eq].code.to_class(eq) # apply different logical operator to each chain
 
     nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
-    convergence_reached = np.zeros(nbr_eq_classes)
     mean_array = np.zeros(nbr_eq_classes, dtype=float)
 
     for eq in range(nbr_eq_classes):
-        for step in range(max_iters):
-            ladder[eq].update_chain(5)
-            nbr_errors_chain[eq ,step] = ladder[eq].code.count_errors()
-            if step >= burnin:
-                if conv_criteria == 'error_based' and not step % 100:
-                    convergence_reached[eq] = conv_crit_error_based(nbr_errors_chain[eq, :step], step, eps)
-                    if convergence_reached[eq]:
-                        mean_array[eq] = np.average(nbr_errors_chain[eq ,:step])
-                        break
-        
-        # if the 'break' is never reached, the for loop goes to else
-        else:
-            if conv_criteria is not None:
-                mean_array[eq] = 2 * init_code.system_size ** 2 #not chosen if not converged
-            else:
-                mean_array[eq] = np.average(nbr_errors_chain[eq, :step])
+        for j in range(max_iters):
+            ladder[eq].update_chain_fast(5)
+            nbr_errors_chain[eq ,j] = ladder[eq].code.count_errors()
+            if j == max_iters-1:
+                mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
 
-    most_likely_eq = np.argmin(mean_array)
-    return mean_array.round(decimals=2), most_likely_eq, convergence_reached
-
-
-def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i papper
-    # last nonzero element of nbr_errors_bottom_chain is since_burn. Length of nonzero part is since_burn + 1
-    # Calculate average number of errors in 2nd and 4th quarter
-    Average_Q2 = np.average(nbr_errors_chain[(l // 4): (l // 2)])
-    Average_Q4 = np.average(nbr_errors_chain[(3 * l // 4): l])
-
-    # Compare averages
-    error = abs(Average_Q2 - Average_Q4)
-    return error < eps
+    return mean_array
 
 
 def PTDC_droplet(ladder, steps, iters, conv_mult):
@@ -269,7 +246,7 @@ def STDC_droplet(chain, steps, randomize, conv_mult):
 
     # Do the metropolis steps and add to samples if new chains are found
     for step in range(int(steps)):
-        chain.update_chain(5)
+        chain.update_chain_fast(5)
         key = hash(chain.code.qubit_matrix.tobytes())
         if key not in samples:
             length = chain.code.count_errors()
@@ -341,7 +318,7 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
         qubitlist.clear()
 
     # Retrun normalized eq_distr
-    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
+    return (np.divide(eqdistr, sum(eqdistr)) * 100)
 
 
 def PTRC_droplet(ladder, steps, iters, conv_mult):
@@ -526,8 +503,7 @@ def STRC_droplet(chain, steps, max_length, eq, randomize, conv_mult):
     # Generate chains
     for step in range(steps):
         # Do metropolis sampling
-        chain.update_chain(5)
-
+        chain.update_chain_fast(5)
         # Convert the current qubit matrix to string for hashing
         key = hash(chain.code.qubit_matrix.tobytes())
 
@@ -561,6 +537,7 @@ def STRC_droplet(chain, steps, max_length, eq, randomize, conv_mult):
                     short_unique[1][key] = length
 
             else:
+                #print('it has a new length!')
                 # Initiate counter for chains of this length
                 len_counts[unique_lengths[key]] = 1
                 # Check if this chain is shorter than prevous shortest chain
@@ -709,7 +686,7 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
         Z_arr[eq] = Z_e
 
     # Use boltzmann factors as relative probabilities and normalize distribution
-    return (Z_arr / np.sum(Z_arr) * 100).astype(dtype=np.uint8)
+    return (Z_arr / np.sum(Z_arr) * 100)
 
 
 if __name__ == '__main__':
@@ -738,7 +715,7 @@ if __name__ == '__main__':
         mwpm_init = regular_mwpm(init_code)
 
         print('################ Chain', i+1 , '###################')
-
+        
         for i in range(tries):
             #t0 = time.time()
             #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)

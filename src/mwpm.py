@@ -12,7 +12,6 @@ import random as rand
 from src.toric_model import *
 from src.planar_model import *
 from src.util import Action
-from line_profiler import LineProfiler
 
 class MWPM():
     def __init__(self, code):
@@ -393,8 +392,9 @@ class MWPM():
 
         # builds arguments for the bloosom5 program
         processId = os.getpid()
-        PATH = str(processId) + 'edges.TXT'
-        OUTPUT_PATH = str(processId) +'output.TXT'
+        PATH_PREFIX = './' # os.getenv('TMPDIR') + '/'
+        PATH = PATH_PREFIX + str(processId) + 'edges.TXT'
+        OUTPUT_PATH = PATH_PREFIX + str(processId) +'output.TXT'
 
         # Save txt file with data for blossom5 to read
         header_str = "{} {}".format(nbr_nodes, nbr_edges)
@@ -402,8 +402,7 @@ class MWPM():
 
         # If on windows, the executable file ends in '.exe'
         blossomname = './src/blossom5-v2.05.src/blossom5'
-        if not os.path.isfile(blossomname):
-            blossomname += '.exe'
+        
         # Run the blossom5 program as if from the terminal. The devnull part discards any prints from blossom5
         subprocess.call([blossomname, '-e', PATH, '-w', OUTPUT_PATH, '-V'], stdout=open(os.devnull, 'wb'))
 
@@ -498,7 +497,7 @@ def regular_mwpm(code):
     code_solution = type(code)(code.system_size)
     # generate solution matrix and store it in solution
     code_solution.qubit_matrix = mwpm.solve()
-    return code_solution
+    return code_solution.define_equivalence_class()
 
 
 def main(args):
