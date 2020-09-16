@@ -7,7 +7,6 @@ import time
 from numba import jit, njit
 from src.toric_model import Toric_code
 from src.planar_model import Planar_code
-from src.util import *
 from src.mcmc import *
 from src.mwpm import class_sorted_mwpm, regular_mwpm
 import pandas as pd
@@ -111,23 +110,23 @@ def single_temp(init_code, p, max_iters):
         # make sure one init per class is provided
         assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
         # initiate ladder
-        ladder = [Chain(p, copy.deepcopy(code)) for code in init_code]
-    
+        chains = [Chain(p, copy.deepcopy(code)) for code in init_code]
+
     # if init_code is a single code, inits for every class have to be generated
     else:
         nbr_eq_classes = init_code.nbr_eq_classes
-        ladder = [None] * nbr_eq_classes # list of chain objects
+        chains = [None] * nbr_eq_classes # list of chain objects
         for eq in range(nbr_eq_classes):
-            ladder[eq] = Chain(p, copy.deepcopy(init_code))
-            ladder[eq].code.qubit_matrix = ladder[eq].code.to_class(eq) # apply different logical operator to each chain
+            chains[eq] = Chain(p, copy.deepcopy(init_code))
+            chains[eq].code.qubit_matrix = chains[eq].code.to_class(eq) # apply different logical operator to each chain
 
     nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
     mean_array = np.zeros(nbr_eq_classes, dtype=float)
 
     for eq in range(nbr_eq_classes):
         for j in range(max_iters):
-            ladder[eq].update_chain_fast(5)
-            nbr_errors_chain[eq ,j] = ladder[eq].code.count_errors()
+            chains[eq].update_chain_fast(5)
+            nbr_errors_chain[eq ,j] = chains[eq].code.count_errors()
             if j == max_iters-1:
                 mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
 
@@ -398,7 +397,7 @@ def PTRC(init_code, p_error, p_sampling=None, droplets=4, Nc=None, steps=20000, 
         size = init_code[0].system_size
         # if Nc is not provided, use code system_size
         Nc = Nc or size
-        # convert init_code to ecery class and initiate ladders
+        # convert init_code to every class and initiate ladders
         eq_ladders = [None] * nbr_eq_classes
         for eq in range(nbr_eq_classes):
             eq_code = copy.deepcopy(init_code)
@@ -690,7 +689,7 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
 
 
 if __name__ == '__main__':
-    size = 9
+    size = 3
     steps = 10 * size ** 4
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
     p_error = 0.10
@@ -711,8 +710,8 @@ if __name__ == '__main__':
         #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
         #init_qubit = np.copy(init_code.qubit_matrix)
 
-        class_init = class_sorted_mwpm(init_code)
-        mwpm_init = regular_mwpm(init_code)
+        #class_init = class_sorted_mwpm(init_code)
+        #mwpm_init = regular_mwpm(init_code)
 
         print('################ Chain', i+1 , '###################')
         
@@ -726,12 +725,12 @@ if __name__ == '__main__':
             t0 = time.time()
             distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            #t0 = time.time()
-            #distrs[i] = PTEQ(copy.deepcopy(mwpm_init), p=p_error)
-            #print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
             t0 = time.time()
-            distrs[i] = PTDC(copy.deepcopy(class_init), p_error=p_error, droplets=4, conv_mult=0)
+            distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
+            print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            t0 = time.time()
+            distrs[i] = PTDC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
             print('Try PTDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
             t0 = time.time()
-            distrs[i] = PTRC(copy.deepcopy(class_init), p_error=p_error, droplets=4, conv_mult=0)
+            distrs[i] = PTRC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
             print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
