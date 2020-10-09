@@ -26,8 +26,29 @@ class Planar_code():
         self.qubit_matrix[1, :, -1] = 0
         self.syndrom()
 
+    def generate_random_error_biased(self, p_xyz):
+        pauli_errors = np.random.uniform(0, 1, size=(2, self.system_size, self.system_size))
+        # remember where to put zeros so they don't get overwritten
+        no_error = pauli_errors > p_xyz.sum()
+        # distribute x, y, z errors by dividing [0, 1] into intervals and comparing to random number
+        # x errors
+        pauli_errors[pauli_errors < p_xyz[0]] = 1
+        # y errors
+        pauli_errors[pauli_errors < p_xyz[0:2].sum()] = 2
+        # z errors
+        pauli_errors[pauli_errors < p_xyz.sum()] = 3
+        # distribute zeros
+        pauli_errors[no_error] = 0
+        self.qubit_matrix[:, :, :] = pauli_errors
+        self.qubit_matrix[1, -1, :] = 0
+        self.qubit_matrix[1, :, -1] = 0
+        self.syndrom()
+
     def count_errors(self):
         return _count_errors(self.qubit_matrix)
+
+    def count_errors_xyz(self):
+        return _count_errors_xyz(self.qubit_matrix)
 
     def apply_logical(self, operator: int, X_pos=0, Z_pos=0):
         return _apply_logical(self.qubit_matrix, operator, X_pos, Z_pos)
@@ -138,6 +159,12 @@ class Planar_code():
 @njit('(uint8[:,:,:],)')
 def _count_errors(qubit_matrix):
     return np.count_nonzero(qubit_matrix)
+
+
+@njit('(uint8[:,:,:],)')
+def _count_errors_xyz(qubit_matrix):
+    errors = np.bincount(qubit_matrix.flatten(), minlength=4)
+    return errors[1:]
 
 
 # At the moment numba is limited in compiling classes
