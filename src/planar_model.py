@@ -163,8 +163,10 @@ def _count_errors(qubit_matrix):
 
 @njit('(uint8[:,:,:],)')
 def _count_errors_xyz(qubit_matrix):
-    errors = np.bincount(qubit_matrix.flatten(), minlength=4)
-    return errors[1:]
+    errors = np.bincount(qubit_matrix.flatten())
+    errors_format = np.zeros(3)
+    errors_format[:errors.shape[0]-1] = errors[1:]
+    return errors_format
 
 
 # At the moment numba is limited in compiling classes
