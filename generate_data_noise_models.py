@@ -66,8 +66,6 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
         # Flatten initial qubit matrix to store in dataframe
         df_qubit = copy.deepcopy(init_code.qubit_matrix)
         eq_true = init_code.define_equivalence_class()
-
-
         
         if params['mwpm_init']: #get mwpm starting points
             init_code = class_sorted_mwpm(init_code)
@@ -141,9 +139,11 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "uncorrelated_comparison":
-            mwpm_choice = regular_mwpm(copy.deepcopy(init_code))
+            mwpm_init = copy.deepcopy(init_code[0])
+            mwpm_init.syndrom()
+            mwpm_choice = regular_mwpm(mwpm_init)
             df_eq_distr1 = np.zeros((4)).astype(np.uint8)
-            df_eq_distr1[choice] = 100
+            df_eq_distr1[mwpm_choice] = 100
 
             df_eq_distr2 = STDC_biased(init_code, params['p_xyz'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             if np.argmax(df_eq_distr2) != eq_true:
