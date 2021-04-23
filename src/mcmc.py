@@ -3,7 +3,7 @@ import random as rand
 import copy
 
 from numba import jit, njit
-from .planar_model import _apply_random_stabilizer  # ???
+from .planar_model import _apply_random_stabilizer, _count_errors_xyz  # ???
 import pandas as pd
 
 
@@ -13,9 +13,9 @@ class Chain:
         self.p = p
         self.p_logical = 0
         self.flag = 0
-        self.factor = ((self.p / 3.0) / (1.0 - self.p))  # rename me
-    # runs iters number of steps of the metroplois-hastings algorithm
+        self.factor = ((self.p / 3.0) / (1.0 - self.p))  # rename me 
 
+    # runs iters number of steps of the metroplois-hastings algorithm
     def update_chain(self, iters):
         if self.p_logical != 0:
             for _ in range(iters):
@@ -103,6 +103,17 @@ class Ladder:
             self.chains[0].flag = 0
 
 
+class Chain_xyz:
+    def __init__(self, p_xyz, code):
+        self.code = code
+        self.p_xyz = p_xyz
+        self.factors = self.p_xyz / (1.0 - self.p_xyz.sum())  # rename me
+        self.qubit_errors = code.count_errors_xyz()
+
+    def update_chain_fast(self, iters):
+        self.code.qubit_matrix, self.qubit_errors = _update_chain_fast_xyz(self.code.qubit_matrix, self.qubit_errors, self.factors, iters)
+
+
 # This is the object we crate to read a file during training
 class MCMCDataReader:
     def __init__(self, file_path, size):
@@ -147,3 +158,16 @@ def _update_chain_fast(qubit_matrix, factor, iters):
         if rand.random() < factor ** qubit_errors_change:
             qubit_matrix = new_matrix
     return qubit_matrix
+
+@njit(cache=True)
+def _update_chain_fast_xyz(qubit_matrix, qubit_errors, factors, iters):
+    for _ in range(iters):
+        new_matrix, _ = _apply_random_stabilizer(qubit_matrix)
+        qubit_errors_new = _count_errors_xyz(new_matrix)
+        qubit_errors_change = qubit_errors_new - qubit_errors
+
+        # acceptence ratio
+        if rand.random() < factors ** qubit_errors_change:
+            qubit_matrix = new_matrix
+            qubit_errors = qubit_errors_new
+    return qubit_matrix, qubit_errors

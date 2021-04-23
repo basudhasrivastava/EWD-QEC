@@ -349,7 +349,10 @@ def STDC_biased(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000):
         nbr_eq_classes = init_code[0].nbr_eq_classes
         # make sure one init code is provided for each class
         assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
-        eq_chains = [Chain(p_sampling, copy.deepcopy(code)) for code in init_code]
+        if type(p_sampling) == np.ndarray:
+            eq_chains = [Chain_xyz(p_sampling, copy.deepcopy(code)) for code in init_code]
+        else:
+            eq_chains = [Chain(p_sampling, copy.deepcopy(code)) for code in init_code]
         # don't apply uniform stabilizers if low energy inits are provided
         randomize = False
 
