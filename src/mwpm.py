@@ -483,3 +483,31 @@ def regular_mwpm(code):
     # generate solution matrix and store it in solution
     code_solution.qubit_matrix = mwpm.solve()
     return code_solution.define_equivalence_class()
+
+
+# Runs class constrained mwpm and selects best class depending on error probability and noise model
+def enhanced_mwpm(code, model="depolarizing", p_xyz=None):
+    # get constrained mwpm solution in each class
+    sorted_classes = class_sorted_mwpm(code)
+    if model == "depolarizing":
+        class_error_counts = np.array([c.count_errors() for c in sorted_classes])
+        # randomly select a class with shortest length solution
+        best_class = np.random.choice(np.where(class_error_counts == class_error_counts.min())[0])
+
+    elif model == "uncorrelated":
+        class_error_counts = [c.count_errors_xyz() for c in sorted_classes]
+        # uncorrelated noise effective length is n_x + 2 n_y + n_z
+        class_weighted_lengths = np.array([ec[0] + 2*ec[1] + ec[2] for ec in class_error_counts])
+        # randomly select a class with shortest weighted length solution
+        best_class = np.random.choice(np.where(class_weighted_lengths == class_weighted_lengths.min())[0])
+
+    elif model == "biased" and (p_xyz is not None): 
+        class_error_counts = [c.count_errors_xyz() for c in sorted_classes]
+        p_xyz_rel = (p_xyz / 3) / (1 - p_xyz)
+
+        # calculate relative probabilities compared to class 0 chain
+        class_rel_prob = np.array([(p_xyz_rel ** (n_errors - class_error_counts[0])).prod() for n_errors in class_error_counts])
+        # randomly select a class with largest relative probability
+        best_class = np.random.choice(np.where(class_rel_prob == class_rel_prob.max())[0])
+    
+    return best_class

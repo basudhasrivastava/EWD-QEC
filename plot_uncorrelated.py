@@ -43,9 +43,8 @@ def success_rates(sizes, p_round_arr):
             matches = [f for f in files if re.search(pattern, f)]
 
             if not matches:
-                print("fuck")
             #    ends[i] = min(ends[i], j)
-            #    continue
+                continue
 
             #np_list = []
             df_list = []
@@ -96,6 +95,57 @@ def success_rates(sizes, p_round_arr):
     
     np.savez('Success_rates_low_psampling.npz', mwpm=success_rate_mwpm, stdc=success_rate_stdc)
 
+def success_rates_extensive(size, p_round_arr): # single size
+    
+    success_rate_mwpm = np.zeros(32)
+    success_rate_emwpm = np.zeros(32)
+    success_rate_stdc_depol = np.zeros(32)
+    success_rate_stdc_uncorr = np.zeros(32)
+
+    path = './output/data_size_{}*extensive_5L5.xz'.format(size)
+    files = glob.glob(path)
+
+    # if there is no data for current size, move to next size
+    if not files:
+        return
+
+    for i, p_round in enumerate(p_round_arr):
+        # check if file exists, otherwise skip iteration
+        pattern = f'perror_{p_round}_extensive_5L5.xz'
+        matches = [f for f in files if re.search(pattern, f)]
+
+        if not matches:
+            continue
+
+        # Read data, one file at a time
+        df_list = []
+        for file in matches:
+            df_tmp = pd.read_pickle(file)
+            df_list.append(df_tmp)
+
+        # Combine list of dataframes into a single dataframe
+        df = pd.concat(df_list, ignore_index=True)
+        n_data = df.shape[0]
+
+        # Find true class and decoder class for each decoder
+        true_classes = df['qubit_matrix'].map(_define_equivalence_class)
+        mwpm_classes = df['mwpm_distr'].map(np.argmax)
+        emwpm_classes = df['emwpm_distr'].map(np.argmax)
+        stdc_depol_classes = df['stdc_depol_samp'].map(np.argmax)
+        stdc_uncorr_classes = df['stdc_uncorr_samp'].map(np.argmax)
+
+        success_rate_mwpm[i] = (true_classes == mwpm_classes).mean()
+        success_rate_emwpm[i] = (true_classes == emwpm_classes).mean()
+        success_rate_stdc_depol[i] = (true_classes == stdc_depol_classes).mean()
+        success_rate_stdc_uncorr[i] = (true_classes == stdc_uncorr_classes).mean()
+
+        # print number of data points
+        print(f'size: {size}, p_x: {p_round:.3f}, n_data: {n_data}')
+    
+    np.savez('Success_rates_extensive.npz', mwpm=success_rate_mwpm, emwpm=success_rate_emwpm, \
+         stdc_depol=success_rate_stdc_depol, stdc_uncorr=success_rate_stdc_uncorr)
+
+
 def plot_success(sizes, p_error_arr, success_rate_mwpm, success_rate_stdc):
     prop_cycle = plt.rcParams['axes.prop_cycle']
     colors = prop_cycle.by_key()['color']
@@ -120,6 +170,28 @@ def plot_success(sizes, p_error_arr, success_rate_mwpm, success_rate_stdc):
     ax.legend()
 
     fig.savefig('./plots/STDC_MWPM_uncorr_success_low_psampling.png')
+
+
+def plot_success_extensive(size, p_error_arr, success_rate_mwpm, success_rate_emwpm, \
+    success_rate_stdc_depol, success_rate_stdc_uncorr): # single size
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    p_x = p_error_arr * (1 - p_error_arr)
+
+    ax.plot(p_x, success_rate_mwpm, label="MWPM")
+    ax.plot(p_x, success_rate_emwpm, label="E-MWPM")
+    ax.plot(p_x, success_rate_stdc_depol, label="STDC depolarizing sampling")
+    ax.plot(p_x, success_rate_stdc_uncorr, label="STDC uncorrelated sampling")
+
+    ax.grid(True)
+    ax.set_xlabel('p_x')
+    ax.set_ylabel('success rate')
+    ax.set_title('p_sampling = 0.1, L = 19')
+    #ax.set_xlim((0.07, 0.11))
+    #ax.set_yscale("log")
+    ax.legend()
+
+    fig.savefig('./plots/STDC_MWPM_uncorr_success_extensive.png')
 
 
 def plot_failure(sizes, p_error_arr, success_rate_mwpm, success_rate_stdc):
@@ -155,9 +227,11 @@ def plot_failure(sizes, p_error_arr, success_rate_mwpm, success_rate_stdc):
 
     fig.savefig('./plots/STDC_MWPM_uncorr_fail_final.png')
 
+
 def main():
     #sizes = [i for i in range(5, 20, 2)]
-    sizes = [19]
+    #sizes = [19]
+    size=19
     # general noise error rates
     p_error = 0.05 + np.arange(32) / 180
     # rounded error rates for file finding
@@ -166,14 +240,25 @@ def main():
     p_error = 1 - np.sqrt(1 - p_error)
 
     #success_rates(sizes, p_round_arr)
+    #success_rates_extensive(size, p_round_arr)
 
-    rates = np.load('./Success_rates_low_psampling.npz')
+    #rates = np.load('./Success_rates_low_psampling.npz')
+    #success_rate_mwpm = rates['mwpm']
+    #success_rate_stdc = rates['stdc']
+    #rates.close()
+    
+    rates = np.load('./Success_rates_extensive.npz')
     success_rate_mwpm = rates['mwpm']
-    success_rate_stdc = rates['stdc']
+    #print("mwpm: ", success_rate_mwpm)
+    success_rate_emwpm = rates['emwpm']
+    #print("emwpm: ", success_rate_emwpm)
+    success_rate_stdc_depol = rates['stdc_depol']
+    success_rate_stdc_uncorr = rates['stdc_uncorr']
     rates.close()
 
-    plot_success(sizes, p_error, success_rate_mwpm, success_rate_stdc)
+    #plot_success(sizes, p_error, success_rate_mwpm, success_rate_stdc)
     #plot_failure(sizes, p_round_arr, success_rate_mwpm, success_rate_stdc)
+    plot_success_extensive(size, p_error, success_rate_mwpm, success_rate_emwpm, success_rate_stdc_depol, success_rate_stdc_uncorr)
 
 
 if __name__ == '__main__':

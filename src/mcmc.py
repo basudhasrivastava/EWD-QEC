@@ -167,7 +167,7 @@ def _update_chain_fast_xyz(qubit_matrix, qubit_errors, factors, iters):
         qubit_errors_change = qubit_errors_new - qubit_errors
 
         # acceptence ratio
-        if rand.random() < factors ** qubit_errors_change:
+        if rand.random() < (factors ** qubit_errors_change).prod():
             qubit_matrix = new_matrix
             qubit_errors = qubit_errors_new
     return qubit_matrix, qubit_errors
