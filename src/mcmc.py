@@ -78,6 +78,8 @@ class Ladder:
 
         # logical sampling rate in top chain
         self.p_logical = p_logical
+        
+        # p_top is 0.75 for depolarizing noise
         p_top = (eta + 1) / (2 * eta + 1)
 
         # temporary list of sampling probabilities
