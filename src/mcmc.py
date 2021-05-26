@@ -8,17 +8,29 @@ import pandas as pd
 
 
 class Chain:
-    def __init__(self, p, code):
+    def __init__(self, p, eta, code):
         self.code = code
         self.p = p
+        self.eta = eta
         self.p_logical = 0
         self.flag = 0
         self.factor = ((self.p / 3.0) / (1.0 - self.p))  # rename me
     # runs iters number of steps of the metroplois-hastings algorithm
 
     def update_chain(self, iters):
+        num = self.code.system_size**2
+        eta = self.eta
+        p_top = (eta + 1) / (2 * eta + 1)
+        p = self.p
+        pz = p * eta / (eta + 1)
+        px = p / (2 * (eta + 1))
+        py = px
         if self.p_logical != 0:
             for _ in range(iters):
+#                 xb = np.count_nonzero(self.code.qubit_matrix[:, :] == 1)
+#                 yb = np.count_nonzero(self.code.qubit_matrix[:, :] == 2)
+#                 zb = np.count_nonzero(self.code.qubit_matrix[:, :] == 3)
+#                 pb = (px ** xb) * (py ** yb) * (pz ** zb) * ((1 - px - py - pz) ** (num - xb - yb - zb))
                 # apply logical or stabilizer with p_logical
                 if rand.random() < self.p_logical:
                     new_matrix, qubit_errors_change = self.code.apply_random_logical()
