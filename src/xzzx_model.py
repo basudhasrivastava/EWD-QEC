@@ -12,12 +12,7 @@ class xzzx_code():
         self.system_size = size
         self.qubit_matrix = np.zeros((self.system_size, self.system_size), dtype=np.uint8)
 
-    def generate_random_error(self, p_error, eta):
-        eta = eta
-        p = p_error
-        p_z = p * eta / (eta + 1)
-        p_x = p / (2 * (eta + 1))
-        p_y = p_x
+    def generate_random_error(self, p_x, p_y, p_z):
         size = self.system_size
         for i in range(size):
             for j in range(size):

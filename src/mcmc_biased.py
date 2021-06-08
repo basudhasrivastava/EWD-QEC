@@ -7,16 +7,28 @@ from .planar_model import _apply_random_stabilizer  # ???
 import pandas as pd
 
 
-class Chain:
-    def __init__(self, p, code):
+class Chain_biased:
+    def __init__(self, p, eta, code):
         self.code = code
         self.p = p
+        self.eta = eta
         self.p_logical = 0
         self.flag = 0
         self.factor = ((self.p / 3.0) / (1.0 - self.p))  # rename me
     # runs iters number of steps of the metroplois-hastings algorithm
 
     def update_chain(self, iters):
+        num = self.code.system_size**2
+        eta = self.eta
+        p_top = (eta + 1) / (2 * eta + 1)
+        p = self.p
+        pz = p * eta / (eta + 1)
+        px = p / (2 * (eta + 1))
+        py = px
+        xb = np.count_nonzero(self.code.qubit_matrix[:, :] == 1)
+        yb = np.count_nonzero(self.code.qubit_matrix[:, :] == 2)
+        zb = np.count_nonzero(self.code.qubit_matrix[:, :] == 3)
+        pb = (px ** xb) * (py ** yb) * (pz ** zb) * ((1 - px - py - pz) ** (num - xb - yb - zb))
         if self.p_logical != 0:
             for _ in range(iters):
                 # apply logical or stabilizer with p_logical
@@ -24,32 +36,39 @@ class Chain:
                     new_matrix, qubit_errors_change = self.code.apply_random_logical()
                 else:
                     new_matrix, qubit_errors_change = self.code.apply_random_stabilizer()
-
-                # Avoid calculating r if possible. If self.p is 0.75 r = 1 and we accept all changes
-                # If the new qubit matrix has equal or fewer errors, r >= 1 and we also accept all changes
-                if self.p >= 0.75 or qubit_errors_change <= 0:
+                
+                xn = np.count_nonzero(new_matrix[:, :] == 1)
+                yn = np.count_nonzero(new_matrix[:, :] == 2)
+                zn = np.count_nonzero(new_matrix[:, :] == 3)
+                pn = (px ** xn) * (py ** yn) * (pz ** zn) * ((1 - px - py - pz) ** (num - xn - yn - zn))
+                ratio_p = pn / pb
+                if rand.random() < ratio_p:
                     self.code.qubit_matrix = new_matrix
                     continue
-                # acceptence ratio
-                if rand.random() < self.factor ** qubit_errors_change:
-                    self.code.qubit_matrix = new_matrix
 
         else:
             for _ in range(iters):
                 new_matrix, qubit_errors_change = self.code.apply_random_stabilizer()
-
-                # acceptence ratio
-                if rand.random() < self.factor ** qubit_errors_change:
+                
+                xn = np.count_nonzero(new_matrix[:, :] == 1)
+                yn = np.count_nonzero(new_matrix[:, :] == 2)
+                zn = np.count_nonzero(new_matrix[:, :] == 3)
+                pn = (px ** xn) * (py ** yn) * (pz ** zn) * ((1 - px - py - pz) ** (num - xn - yn - zn))
+                ratio_p = pn / pb
+                if rand.random() < ratio_p:
                     self.code.qubit_matrix = new_matrix
+
 
     def update_chain_fast(self, iters):
         self.code.qubit_matrix = _update_chain_fast(self.code.qubit_matrix, self.factor, iters)
 
 
-class Ladder:
-    def __init__(self, p_bottom, init_code, Nc, p_logical=0):
-        # sampling probability of bottom chain
-        self.p_bottom = p_bottom
+class Ladder_biased:
+    def __init__(self, p_bottom, init_code, eta, Nc, p_logical=0):
+        
+        self.eta = eta
+        
+        self._bottom = p_bottom
 
         # seed code
         self.init_code = init_code
@@ -59,7 +78,9 @@ class Ladder:
 
         # logical sampling rate in top chain
         self.p_logical = p_logical
-        p_top = 0.75
+        
+        # p_top is 0.75 for depolarizing noise
+        p_top = (eta + 1) / (2 * eta + 1)
 
         # temporary list of sampling probabilities
         p_ladder = np.linspace(p_bottom, p_top, Nc)
@@ -67,10 +88,9 @@ class Ladder:
 
         # list of relative probabilities
         self.p_diff = (p_ladder[:-1] * (1 - p_ladder[1:])) / (p_ladder[1:] * (1 - p_ladder[:-1]))
-        print(self.p_diff)
 
         # list of Chains of increasing p
-        self.chains = [Chain(p, copy.deepcopy(init_code)) for p in p_ladder]
+        self.chains = [Chain_biased(p, eta, copy.deepcopy(init_code)) for p in p_ladder]
 
         # special properties of top chain
         self.chains[-1].flag = 1
@@ -133,10 +153,7 @@ class MCMCDataReader:
 
 @njit('(int64, int64, float64)')
 def _r_flip(ne_lo, ne_hi, rel_p):
-    if ne_hi < ne_lo:
-        return True
-    else:
-        return rand.random() < rel_p ** (ne_hi - ne_lo)
+    return rand.random() < rel_p ** (ne_hi - ne_lo)
 
 
 @njit(cache=True)
