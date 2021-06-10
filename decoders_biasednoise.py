@@ -119,7 +119,7 @@ def PTEQ_alpha(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=10, tops_burn=
             since_burn = step - resulting_burn_in
             eq[since_burn] = eq[since_burn - 1]
             eq[since_burn][current_eq] += 1
-            nbr_errors_bottom_chain[since_burn] = ladder.chains[0].code.count_errors()
+            nbr_errors_bottom_chain[since_burn] = ladder.chains[0].n_eff
         else:
             # number of steps until tops0 = 2
             resulting_burn_in += 1
