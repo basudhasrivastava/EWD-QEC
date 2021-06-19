@@ -59,7 +59,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
             init_code = Planar_code(params['size'])
 
             if 'p_xyz' in params:
-                init_code.generate_random_error_biased(params['p_xyz'])
+                init_code.generate_general_noise_error(params['p_xyz'])
             else:
                 init_code.generate_random_error(params['p_error'])
  
