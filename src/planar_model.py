@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from random import random
 from numba import njit
 import random as rand
+from scipy import optimize
 
 
 class Planar_code():
@@ -26,7 +27,7 @@ class Planar_code():
         self.qubit_matrix[1, :, -1] = 0
         self.syndrom()
 
-    def generate_random_error_biased(self, p_xyz):
+    def generate_general_noise_error(self, p_xyz):
         pauli_errors = np.random.uniform(0, 1, size=(2, self.system_size, self.system_size))
         # remember where to put zeros so they don't get overwritten
         no_error = pauli_errors > p_xyz.sum()
@@ -43,6 +44,46 @@ class Planar_code():
         self.qubit_matrix[1, -1, :] = 0
         self.qubit_matrix[1, :, -1] = 0
         self.syndrom()
+    
+    def generate_biased_error(self, p_error, eta):
+        p = p_error
+        p_z = p * eta / (eta + 1)
+        p_x = p / (2 * (eta + 1))
+        p_y = p_x
+        size = self.system_size
+        for i in range(size):
+            for j in range(size):
+                q = 0
+                r = rand.random()
+                if r < p_z:
+                    q = 3
+                elif p_z < r < (p_z + p_x):
+                    q = 1
+                elif (p_z + p_x) < r < (p_z + p_x + p_y):
+                    q = 2
+                self.qubit_matrix[i, j] = q
+    
+    def generate_alpha_error(self, p_error, alpha):
+        p_tilde = p_error / (1 + p_error)
+
+        pz_tilde = optimize.fsolve(lambda x: x + 2*x**alpha - p_tilde, 0.5)[0]
+        px_tilde = py_tilde = pz_tilde**alpha
+
+        p_z = pz_tilde * (1 - p_error)
+        p_x = px_tilde * (1 - p_error)
+        p_y = py_tilde * (1 - p_error)
+        size = self.system_size
+        for i in range(size):
+            for j in range(size):
+                q = 0
+                r = rand.random()
+                if r < p_z:
+                    q = 3
+                elif p_z < r < (p_z + p_x):
+                    q = 1
+                elif (p_z + p_x) < r < (p_z + p_x + p_y):
+                    q = 2
+                self.qubit_matrix[i, j] = q
 
     def count_errors(self):
         return _count_errors(self.qubit_matrix)
