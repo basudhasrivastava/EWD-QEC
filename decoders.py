@@ -320,7 +320,7 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
     return (np.divide(eqdistr, sum(eqdistr)) * 100)
 
 
-def STDC_droplet_biased(chain, steps, randomize):
+def STDC_droplet_general_noise(chain, steps, randomize):
     # All unique chains will be saved in samples
     samples = {}
 
@@ -339,7 +339,7 @@ def STDC_droplet_biased(chain, steps, randomize):
     return samples
 
 
-def STDC_biased(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000, shortest_only=False):
+def STDC_general_noise(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000, shortest_only=False):
     # p_xyz is an array (p_x, p_y, p_z)
     # set p_sampling equal to sum of p_xyz by default
     if p_sampling is None:
@@ -393,10 +393,10 @@ def STDC_biased(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000, sho
         chain = eq_chains[eq]
 
         if droplets == 1:
-            qubitlist = STDC_droplet_biased(copy.deepcopy(chain), steps, randomize)
+            qubitlist = STDC_droplet_general_noise(copy.deepcopy(chain), steps, randomize)
         else:
             args = [(copy.deepcopy(chain), steps, randomize) for _ in range(droplets)]
-            output = pool.starmap_async(STDC_droplet_biased, args).get()
+            output = pool.starmap_async(STDC_droplet_general_noise, args).get()
             for res in output:
                 qubitlist.update(res)
 
@@ -429,7 +429,7 @@ def STDC_biased(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000, sho
     return (np.divide(eqdistr, sum(eqdistr)) * 100)
 
 
-def STDC_biased_shortest(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000):
+def STDC_general_noise_shortest(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000):
     # p_xyz is an array (p_x, p_y, p_z)
     # set p_sampling equal to sum of p_xyz by default
     if p_sampling is None:
@@ -484,10 +484,10 @@ def STDC_biased_shortest(init_code, p_xyz, p_sampling=None, droplets=10, steps=2
         chain = eq_chains[eq]
 
         if droplets == 1:
-            qubitlist = STDC_droplet_biased(copy.deepcopy(chain), steps, randomize)
+            qubitlist = STDC_droplet_general_noise(copy.deepcopy(chain), steps, randomize)
         else:
             args = [(copy.deepcopy(chain), steps, randomize) for _ in range(droplets)]
-            output = pool.starmap_async(STDC_droplet_biased, args).get()
+            output = pool.starmap_async(STDC_droplet_general_noise, args).get()
             for res in output:
                 qubitlist.update(res)
 
@@ -920,4 +920,4 @@ if __name__ == '__main__':
             #t0 = time.time()
             #distrs[i] = PTRC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
             #print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            print(STDC_biased_shortest(copy.deepcopy(init_code), p_xyz, 0.25, droplets=1, steps=steps))
+            print(STDC_general_noise_shortest(copy.deepcopy(init_code), p_xyz, 0.25, droplets=1, steps=steps))

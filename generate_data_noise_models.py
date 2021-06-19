@@ -145,7 +145,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
             df_eq_distr1 = np.zeros((4)).astype(np.uint8)
             df_eq_distr1[mwpm_choice] = 100
 
-            df_eq_distr2 = STDC_biased(init_code, params['p_xyz'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+            df_eq_distr2 = STDC_general_noise(init_code, params['p_xyz'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             if np.argmax(df_eq_distr2) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
