@@ -146,6 +146,57 @@ def success_rates_extensive(size, p_round_arr): # single size
          stdc_depol=success_rate_stdc_depol, stdc_uncorr=success_rate_stdc_uncorr)
 
 
+def success_rates_shortest(size, p_round_arr): # single size
+    
+    success_rate_stdc_depol = np.zeros(32)
+    success_rate_stdc_depol_short = np.zeros(32)
+    success_rate_stdc_uncorr = np.zeros(32)
+    success_rate_stdc_uncorr_short = np.zeros(32)
+
+    path = './output/data_size_{}_method_shortest_comparison*_5L5.xz'.format(size)
+    files = glob.glob(path)
+
+    # if there is no data for current size, move to next size
+    if not files:
+        return
+
+    for i, p_round in enumerate(p_round_arr):
+        # check if file exists, otherwise skip iteration
+        pattern = f'perror_{p_round}_5L5.xz'
+        matches = [f for f in files if re.search(pattern, f)]
+
+        if not matches:
+            continue
+
+        # Read data, one file at a time
+        df_list = []
+        for file in matches:
+            df_tmp = pd.read_pickle(file)
+            df_list.append(df_tmp)
+
+        # Combine list of dataframes into a single dataframe
+        df = pd.concat(df_list, ignore_index=True)
+        n_data = df.shape[0]
+
+        # Find true class and decoder class for each decoder
+        true_classes = df['qubit_matrix'].map(_define_equivalence_class)
+        stdc_depol_classes = df['stdc_depol'].map(np.argmax)
+        stdc_depol_short_classes = df['stdc_depol_short'].map(np.argmax)
+        stdc_uncorr_classes = df['stdc_uncorr'].map(np.argmax)
+        stdc_uncorr_short_classes = df['stdc_uncorr_short'].map(np.argmax)
+
+        success_rate_stdc_depol[i] = (true_classes == stdc_depol_classes).mean()
+        success_rate_stdc_depol_short[i] = (true_classes == stdc_depol_short_classes).mean()
+        success_rate_stdc_uncorr[i] = (true_classes == stdc_uncorr_classes).mean()
+        success_rate_stdc_uncorr_short[i] = (true_classes == stdc_uncorr_short_classes).mean()
+
+        # print number of data points
+        print(f'size: {size}, p_x: {p_round:.3f}, n_data: {n_data}')
+    
+    np.savez('Success_rates_shortest.npz', stdc_depol=success_rate_stdc_depol, stdc_depol_short=success_rate_stdc_depol_short, \
+        stdc_uncorr=success_rate_stdc_uncorr, stdc_uncorr_short=success_rate_stdc_uncorr_short)
+
+
 def plot_success(sizes, p_error_arr, success_rate_mwpm, success_rate_stdc):
     prop_cycle = plt.rcParams['axes.prop_cycle']
     colors = prop_cycle.by_key()['color']
@@ -192,6 +243,28 @@ def plot_success_extensive(size, p_error_arr, success_rate_mwpm, success_rate_em
     ax.legend()
 
     fig.savefig('./plots/STDC_MWPM_uncorr_success_extensive.png')
+
+
+def plot_success_short(size, p_error_arr, success_rate_stdc_depol, success_rate_stdc_depol_short, \
+            success_rate_stdc_uncorr, success_rate_stdc_uncorr_short): # single size
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    p_x = p_error_arr * (1 - p_error_arr)
+
+    ax.plot(p_x, success_rate_stdc_depol, label="Depolarizing sampling")
+    ax.plot(p_x, success_rate_stdc_depol_short, label="Depolarizing, shortest only")
+    ax.plot(p_x, success_rate_stdc_uncorr, label="Uncorrelated")
+    ax.plot(p_x, success_rate_stdc_uncorr_short, label="Uncorrelated, shortest only")
+
+    ax.grid(True)
+    ax.set_xlabel('p_x')
+    ax.set_ylabel('success rate')
+    ax.set_title('p_sampling = 0.1, L = 19')
+    #ax.set_xlim((0.07, 0.11))
+    #ax.set_yscale("log")
+    ax.legend()
+
+    fig.savefig('./plots/STDC_MWPM_uncorr_success_short.png')
 
 
 def plot_failure(sizes, p_error_arr, success_rate_mwpm, success_rate_stdc):
@@ -241,24 +314,34 @@ def main():
 
     #success_rates(sizes, p_round_arr)
     #success_rates_extensive(size, p_round_arr)
+    #success_rates_shortest(size, p_round_arr)
 
     #rates = np.load('./Success_rates_low_psampling.npz')
     #success_rate_mwpm = rates['mwpm']
     #success_rate_stdc = rates['stdc']
     #rates.close()
     
-    rates = np.load('./Success_rates_extensive.npz')
-    success_rate_mwpm = rates['mwpm']
+    #rates = np.load('./Success_rates_extensive.npz')
+    #success_rate_mwpm = rates['mwpm']
     #print("mwpm: ", success_rate_mwpm)
-    success_rate_emwpm = rates['emwpm']
+    #success_rate_emwpm = rates['emwpm']
     #print("emwpm: ", success_rate_emwpm)
+    #success_rate_stdc_depol = rates['stdc_depol']
+    #success_rate_stdc_uncorr = rates['stdc_uncorr']
+    #rates.close()
+
+    rates = np.load('./Success_rates_shortest.npz')
     success_rate_stdc_depol = rates['stdc_depol']
+    success_rate_stdc_depol_short = rates['stdc_depol_short']
     success_rate_stdc_uncorr = rates['stdc_uncorr']
+    success_rate_stdc_uncorr_short = rates['stdc_uncorr_short']
     rates.close()
 
     #plot_success(sizes, p_error, success_rate_mwpm, success_rate_stdc)
     #plot_failure(sizes, p_round_arr, success_rate_mwpm, success_rate_stdc)
-    plot_success_extensive(size, p_error, success_rate_mwpm, success_rate_emwpm, success_rate_stdc_depol, success_rate_stdc_uncorr)
+    #plot_success_extensive(size, p_error, success_rate_mwpm, success_rate_emwpm, success_rate_stdc_depol, success_rate_stdc_uncorr)
+    plot_success_short(size, p_error, success_rate_stdc_depol, success_rate_stdc_depol_short, \
+                success_rate_stdc_uncorr, success_rate_stdc_uncorr_short)
 
 
 if __name__ == '__main__':
