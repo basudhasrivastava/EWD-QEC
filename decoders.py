@@ -7,6 +7,7 @@ import time
 from numba import jit, njit
 from src.toric_model import Toric_code
 from src.planar_model import Planar_code
+from src.xzzx_model import xzzx_code
 from src.mcmc import *
 from src.mcmc_alpha import Chain_alpha
 from src.mwpm import class_sorted_mwpm, regular_mwpm
@@ -332,6 +333,7 @@ def STDC_droplet_general_noise(chain, steps, randomize):
     # Do the metropolis steps and add to samples if new chains are found
     for step in range(int(steps)):
         chain.update_chain_fast(5)
+        # TODO needs to consider noise here (not use fast variant?)
         key = hash(chain.code.qubit_matrix.tobytes())
         if key not in samples:
             lengths = chain.code.count_errors_xyz()
@@ -505,10 +507,22 @@ def STDC_general_noise_shortest(init_code, p_xyz, p_sampling=None, droplets=10, 
     # Retrun normalized eq_distr
     return (np.divide(eqdistr, sum(eqdistr)) * 100), (np.divide(eqdistr_shortest, sum(eqdistr_shortest)) * 100)
 
+def STDC_droplet_alpha(chain, steps):
+    # All unique chains will be saved in samples
+    samples = {}
 
-def STDC_Nall_n_alpha(init_code, p_error, pz_tilde_sampling=None, alpha=1, steps=20000):
-    # set p_sampling equal to p_error by default
-    p_sampling = p_sampling or p_error
+    # Do the metropolis steps and add to samples if new chains are found
+    for step in range(int(steps)):
+        chain.update_chain(5)
+        key = hash(chain.code.qubit_matrix.tobytes())
+        if key not in samples:
+            lengths = chain.code.chain_lengths()
+            samples[key] = lengths
+
+    return samples
+
+
+def STDC_Nall_n_alpha(init_code, pz_tilde_sampling=None, alpha=1, steps=20000):
 
     if type(init_code) == list:
         # this is either 4 or 16, depending on what type of code is used.
@@ -525,18 +539,12 @@ def STDC_Nall_n_alpha(init_code, p_error, pz_tilde_sampling=None, alpha=1, steps
         # Create chain with p_sampling, this is allowed since N(n) is independet of p.
         eq_chains = [None] * nbr_eq_classes
         for eq in range(nbr_eq_classes):
-            eq_chains[eq] = Chain_alpha(pz_tilde_sampling, alpha, init_code)
+            eq_chains[eq] = Chain_alpha(pz_tilde_sampling, alpha, copy.deepcopy(init_code))
 
             eq_class = eq_chains[eq].code.define_equivalence_class()
-            #print('is:',eq_class)
-            #print('should be:',eq)
             op = eq_class^eq
-            #print('apply', op)
-            eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.apply_logical(op)
+            eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.apply_logical(op)[0]
             eq_class = eq_chains[eq].code.define_equivalence_class()
-            #print('is:',eq_class)
-            #print()
-            #eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.to_class(eq)
         # apply uniform stabilizers, i.e. rain
         randomize = True
 
@@ -546,14 +554,11 @@ def STDC_Nall_n_alpha(init_code, p_error, pz_tilde_sampling=None, alpha=1, steps
     # Z_E will be saved in eqdistr
     eqdistr = np.zeros(nbr_eq_classes)
 
-    # error-model
-    beta = -log((p_error / 3) / (1 - p_error))
-
     for eq in range(nbr_eq_classes):
         # go to class eq and apply stabilizers
         chain = eq_chains[eq]
 
-        out = STDC_droplet(chain, steps, randomize)
+        out = STDC_droplet_alpha(chain, steps)
 
         N_n = {}
         for value in out.values():
@@ -943,6 +948,11 @@ if __name__ == '__main__':
     p_sampling = 0.30
     p_xyz = np.array([0.09, 0.01, 0.09])
     init_code = Planar_code(size)
+    
+    pz_tilde_sampling=0.25
+    pz_tilde = 0.3
+    alpha=2
+    
     tries = 1
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
 
@@ -952,6 +962,12 @@ if __name__ == '__main__':
 
     for i in range(2):
         init_code.generate_random_error(p_error)
+
+        # p_tilde = pz_tilde + 2*pz_tilde**alpha
+        # p_z = pz_tilde*(1-p_tilde)
+        # p_x = p_y = pz_tilde**alpha * (1-p_tilde)
+        # init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
+        
         ground_state = init_code.define_equivalence_class()
         print('Ground state:', ground_state)
         

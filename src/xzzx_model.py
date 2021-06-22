@@ -36,6 +36,12 @@ class xzzx_code():
     def count_errors(self):
         return _count_errors(self.qubit_matrix)
 
+    def chain_lengths(self):
+        nx = np.count_nonzero(self.qubit_matrix[:, :] == 1)
+        ny = np.count_nonzero(self.qubit_matrix[:, :] == 2)
+        nz = np.count_nonzero(self.qubit_matrix[:, :] == 3)
+        return nx, ny, nz
+
     def apply_logical(self, operator: int, X_pos=0, Z_pos=0):
         return _apply_logical(self.qubit_matrix, operator, X_pos, Z_pos)
 
@@ -74,7 +80,7 @@ class xzzx_code():
                     row = 2 * i + 1
                     col = 0
                 self.plaquette_defects[row, col] = _find_syndrome(qubit_matrix, i, j, 3)
-        self.plot()
+        #self.plot()
 
     def plot(self):
         system_size = self.system_size
