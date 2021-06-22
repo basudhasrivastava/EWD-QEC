@@ -75,8 +75,9 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
                 pz_tilde = params['pz_tilde']
                 alpha = params['alpha']
                 p_tilde = pz_tilde + 2*pz_tilde**alpha
-                p_z = pz_tilde*(1-p_tilde)
-                p_x = p_y = pz_tilde**alpha * (1-p_tilde)
+                p = p_tilde / (1+p_tilde)
+                p_z = pz_tilde*(1-p)
+                p_x = p_y = pz_tilde**alpha * (1-p)
                 init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
             if params ['noise'] == 'depolarizing':
                 p_x = p_y = p_z = params['p_error']
@@ -193,7 +194,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
         
-        if (i + 1) % 10000 == 0: # this needs to be sufficiently big that rsync has time to sync files before update, maybe change this to be time-based instead.
+        if (i + 1) % 50 == 0: # this needs to be sufficiently big that rsync has time to sync files before update, maybe change this to be time-based instead.
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -221,12 +222,12 @@ if __name__ == '__main__':
 
     params = {'code': "xzzx",
             'method': "PTEQ",
-            'size': 5,
+            'size': 3,
             'noise': 'alpha',
-            'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
+            'p_error': np.round((0.17 + float(array_id) / 100), decimals=2),
             'eta': 2,
-            'alpha': 2,
-            'pz_tilde': np.round((0.05 + float(array_id) / 50), decimals=2),
+            'alpha': 5,
+            'pz_tilde': np.round((0.3 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':1,
             'mwpm_init':False,
@@ -238,15 +239,15 @@ if __name__ == '__main__':
             'TOPS': 10,
             'eps': 0.1}
     # Steps is a function of code size L
-    params.update({'steps': int(params['size'] ** 4)})
+    params.update({'steps': int(1e7)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_noise_'+ params['noise'] + '_perror_' + str(params['p_error']) + '.xz')
+    file_path = os.path.join(local_dir, 'data' + 'alpha5' + '_size_'+str(params['size'])+'_noise_'+ params['noise'] + '_perror_' + str(params['p_error']) + '.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=5, fixed_errors=params['fixed_errors'])
+    generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
     # View data file
     

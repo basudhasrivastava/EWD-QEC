@@ -29,9 +29,9 @@ class Chain_alpha:
 
         pz_tilde = self.pz_tilde
         p_tilde = pz_tilde + 2*pz_tilde**alpha
-
-        pz = pz_tilde*(1-p_tilde)
-        px = py = pz_tilde**alpha * (1-p_tilde)
+        p = p_tilde / (1+p_tilde)
+        pz = pz_tilde*(1-p)
+        px = py = pz_tilde**alpha * (1-p)
 
         xb = np.count_nonzero(self.code.qubit_matrix[:, :] == 1)
         yb = np.count_nonzero(self.code.qubit_matrix[:, :] == 2)
