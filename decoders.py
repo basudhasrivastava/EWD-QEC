@@ -7,7 +7,9 @@ import time
 from numba import jit, njit
 from src.toric_model import Toric_code
 from src.planar_model import Planar_code
+from src.xzzx_model import xzzx_code
 from src.mcmc import *
+from src.mcmc_alpha import Chain_alpha
 from src.mwpm import class_sorted_mwpm, regular_mwpm
 import pandas as pd
 import time
@@ -318,6 +320,256 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
 
     # Retrun normalized eq_distr
     return (np.divide(eqdistr, sum(eqdistr)) * 100)
+
+
+def STDC_droplet_general_noise(chain, steps, randomize):
+    # All unique chains will be saved in samples
+    samples = {}
+
+    # Start in high energy state
+    if randomize:
+        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+
+    # Do the metropolis steps and add to samples if new chains are found
+    for step in range(int(steps)):
+        chain.update_chain_fast(5)
+        # TODO needs to consider noise here (not use fast variant?)
+        key = hash(chain.code.qubit_matrix.tobytes())
+        if key not in samples:
+            lengths = chain.code.count_errors_xyz()
+            samples[key] = lengths
+
+    return samples
+
+
+def STDC_general_noise(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000, shortest_only=False):
+    # p_xyz is an array (p_x, p_y, p_z)
+    # set p_sampling equal to sum of p_xyz by default
+    if p_sampling is None:
+        p_sampling = p_xyz.sum()
+
+    if type(p_sampling) == np.ndarray:
+        chain_class = Chain_xyz
+    else:
+        chain_class = Chain
+
+    if type(init_code) == list:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code[0].nbr_eq_classes
+        # make sure one init code is provided for each class
+        assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
+        eq_chains = [chain_class(p_sampling, copy.deepcopy(code)) for code in init_code]
+
+        # don't apply uniform stabilizers if low energy inits are provided
+        randomize = False
+
+    else:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code.nbr_eq_classes
+        # Create chain with p_sampling, this is allowed since N(n) is independet of p.
+        eq_chains = [None] * nbr_eq_classes
+        for eq in range(nbr_eq_classes):
+            tmp_code = copy.deepcopy(init_code)
+            tmp_code.qubit_matrix = tmp_code.to_class(eq)
+            eq_chains[eq] = chain_class(p_sampling, tmp_code)
+        # apply uniform stabilizers, i.e. rain
+        randomize = False
+
+    # this is where we save all samples in a dict, to find the unique ones.
+    qubitlist = {}
+
+    # Z_E will be saved in eqdistr
+    eqdistr = np.zeros(nbr_eq_classes)
+
+    # deal with infinities
+    check_finite = np.any(p_xyz == 0)
+    p_infinite = (p_xyz == 0)
+
+    # error-model
+    beta = -np.log((p_xyz / 3) / (1 - p_xyz))
+
+    if droplets > 1:
+        pool = Pool(droplets)
+
+    for eq in range(nbr_eq_classes):
+        # go to class eq and apply stabilizers
+        chain = eq_chains[eq]
+
+        if droplets == 1:
+            qubitlist = STDC_droplet_general_noise(copy.deepcopy(chain), steps, randomize)
+        else:
+            args = [(copy.deepcopy(chain), steps, randomize) for _ in range(droplets)]
+            output = pool.starmap_async(STDC_droplet_general_noise, args).get()
+            for res in output:
+                qubitlist.update(res)
+
+        qubit_lengths = np.array(list(qubitlist.values()))
+
+        # beta and the elements of qubit_lenghts are arrays whose dot product corresponds to the chain (log) probability
+        weighted_lengths = np.sum(beta * qubit_lengths, axis=1, where=(qubit_lengths > 0))
+
+        # if only the shortest chains should be used, drop all longer chains
+        # might want to choose better tolerances for np.isclose
+        if shortest_only:
+            weighted_lengths = weighted_lengths[np.isclose(weighted_lengths, np.min(weighted_lengths))]
+
+        # compute Z_E
+        eqdistr[eq] = np.sum(np.exp(-weighted_lengths))
+        qubitlist.clear()
+        # deal with infinities
+        #if check_finite:
+        #    for counts in qubitlist.values():
+        #        # if p_i = 0, a chain with i-errors has probability 0 and need not be counted
+        #        if not np.any(counts[p_infinite]):
+        #            eqdistr[eq] += np.exp(-np.sum(beta * counts))
+        ## if all p are nonzero, no need to deal with infinities
+        #else:
+        #    for key in qubitlist:
+        #        eqdistr[eq] += np.exp(-np.sum(beta * qubitlist[key]))
+        #qubitlist.clear()
+
+    # Retrun normalized eq_distr
+    return (np.divide(eqdistr, sum(eqdistr)) * 100)
+
+
+def STDC_general_noise_shortest(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000):
+    # p_xyz is an array (p_x, p_y, p_z)
+    # set p_sampling equal to sum of p_xyz by default
+    if p_sampling is None:
+        p_sampling = p_xyz.sum()
+
+    if type(p_sampling) == np.ndarray:
+        chain_class = Chain_xyz
+    else:
+        chain_class = Chain
+
+    if type(init_code) == list:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code[0].nbr_eq_classes
+        # make sure one init code is provided for each class
+        assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
+        eq_chains = [chain_class(p_sampling, copy.deepcopy(code)) for code in init_code]
+
+        # don't apply uniform stabilizers if low energy inits are provided
+        randomize = False
+
+    else:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code.nbr_eq_classes
+        # Create chain with p_sampling, this is allowed since N(n) is independet of p.
+        eq_chains = [None] * nbr_eq_classes
+        for eq in range(nbr_eq_classes):
+            tmp_code = copy.deepcopy(init_code)
+            tmp_code.qubit_matrix = tmp_code.to_class(eq)
+            eq_chains[eq] = chain_class(p_sampling, tmp_code)
+        # apply uniform stabilizers, i.e. rain
+        randomize = False
+
+    # this is where we save all samples in a dict, to find the unique ones.
+    qubitlist = {}
+
+    # Z_E will be saved in eqdistr
+    eqdistr = np.zeros(nbr_eq_classes)
+    eqdistr_shortest = np.zeros(nbr_eq_classes)
+
+    # deal with infinities
+    check_finite = np.any(p_xyz == 0)
+    p_infinite = (p_xyz == 0)
+
+    # error-model
+    beta = -np.log((p_xyz / 3) / (1 - p_xyz))
+
+    if droplets > 1:
+        pool = Pool(droplets)
+
+    for eq in range(nbr_eq_classes):
+        # go to class eq and apply stabilizers
+        chain = eq_chains[eq]
+
+        if droplets == 1:
+            qubitlist = STDC_droplet_general_noise(copy.deepcopy(chain), steps, randomize)
+        else:
+            args = [(copy.deepcopy(chain), steps, randomize) for _ in range(droplets)]
+            output = pool.starmap_async(STDC_droplet_general_noise, args).get()
+            for res in output:
+                qubitlist.update(res)
+
+        qubit_lengths = np.array(list(qubitlist.values()))
+
+        # beta and the elements of qubit_lenghts are arrays whose dot product corresponds to the chain (log) probability
+        weighted_lengths = np.sum(beta * qubit_lengths, axis=1, where=(qubit_lengths > 0))
+
+        # compute Z_E
+        eqdistr[eq] = np.sum(np.exp(-weighted_lengths))
+        eqdistr_shortest[eq] = np.sum(np.exp(-weighted_lengths), where=np.isclose(weighted_lengths, np.min(weighted_lengths)))
+        qubitlist.clear()
+
+    # Retrun normalized eq_distr
+    return (np.divide(eqdistr, sum(eqdistr)) * 100), (np.divide(eqdistr_shortest, sum(eqdistr_shortest)) * 100)
+
+def STDC_droplet_alpha(chain, steps):
+    # All unique chains will be saved in samples
+    samples = {}
+
+    # Do the metropolis steps and add to samples if new chains are found
+    for step in range(int(steps)):
+        chain.update_chain(5)
+        key = hash(chain.code.qubit_matrix.tobytes())
+        if key not in samples:
+            lengths = chain.code.chain_lengths()
+            samples[key] = lengths
+
+    return samples
+
+
+def STDC_Nall_n_alpha(init_code, pz_tilde_sampling=None, alpha=1, steps=20000):
+
+    if type(init_code) == list:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code[0].nbr_eq_classes
+        # make sure one init code is provided for each class
+        assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
+        eq_chains = [Chain_alpha(pz_tilde_sampling, alpha, init_code) for code in init_code]
+        # don't apply uniform stabilizers if low energy inits are provided
+        randomize = False
+
+    else:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code.nbr_eq_classes
+        # Create chain with p_sampling, this is allowed since N(n) is independet of p.
+        eq_chains = [None] * nbr_eq_classes
+        for eq in range(nbr_eq_classes):
+            eq_chains[eq] = Chain_alpha(pz_tilde_sampling, alpha, copy.deepcopy(init_code))
+
+            eq_class = eq_chains[eq].code.define_equivalence_class()
+            op = eq_class^eq
+            eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.apply_logical(op)[0]
+            eq_class = eq_chains[eq].code.define_equivalence_class()
+        # apply uniform stabilizers, i.e. rain
+        randomize = True
+
+    # this is where we save all samples in a dict, to find the unique ones.
+    Nobs_n = [{}, {}, {}, {}]
+
+    # Z_E will be saved in eqdistr
+    eqdistr = np.zeros(nbr_eq_classes)
+
+    for eq in range(nbr_eq_classes):
+        # go to class eq and apply stabilizers
+        chain = eq_chains[eq]
+
+        out = STDC_droplet_alpha(chain, steps)
+
+        N_n = {}
+        for value in out.values():
+            if value in N_n:
+                N_n[value] += 1
+            else:
+                N_n[value] = 1
+
+        Nobs_n[eq] = N_n
+
+    return Nobs_n
 
 
 def PTRC_droplet(ladder, steps, iters, conv_mult):
@@ -689,12 +941,18 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
 
 
 if __name__ == '__main__':
-    size = 3
-    steps = 10 * size ** 4
+    size = 9
+    steps = 10 * size ** 5
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
     p_error = 0.10
     p_sampling = 0.30
+    p_xyz = np.array([0.09, 0.01, 0.09])
     init_code = Planar_code(size)
+    
+    pz_tilde_sampling=0.25
+    pz_tilde = 0.3
+    alpha=2
+    
     tries = 1
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
 
@@ -704,6 +962,12 @@ if __name__ == '__main__':
 
     for i in range(2):
         init_code.generate_random_error(p_error)
+
+        # p_tilde = pz_tilde + 2*pz_tilde**alpha
+        # p_z = pz_tilde*(1-p_tilde)
+        # p_x = p_y = pz_tilde**alpha * (1-p_tilde)
+        # init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
+        
         ground_state = init_code.define_equivalence_class()
         print('Ground state:', ground_state)
         
@@ -716,9 +980,6 @@ if __name__ == '__main__':
         print('################ Chain', i+1 , '###################')
         
         for i in range(tries):
-            #t0 = time.time()
-            #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
-            #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
             distrs[i] = STDC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
