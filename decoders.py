@@ -8,6 +8,7 @@ from numba import jit, njit
 from src.toric_model import Toric_code
 from src.planar_model import Planar_code
 from src.mcmc import *
+from src.mcmc_alpha import Chain_alpha
 from src.mwpm import class_sorted_mwpm, regular_mwpm
 import pandas as pd
 import time
@@ -318,6 +319,67 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
 
     # Retrun normalized eq_distr
     return (np.divide(eqdistr, sum(eqdistr)) * 100)
+
+
+def STDC_Nall_n_alpha(init_code, p_error, pz_tilde_sampling=None, alpha=1, steps=20000):
+    # set p_sampling equal to p_error by default
+    p_sampling = p_sampling or p_error
+
+    if type(init_code) == list:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code[0].nbr_eq_classes
+        # make sure one init code is provided for each class
+        assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
+        eq_chains = [Chain_alpha(pz_tilde_sampling, alpha, init_code) for code in init_code]
+        # don't apply uniform stabilizers if low energy inits are provided
+        randomize = False
+
+    else:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code.nbr_eq_classes
+        # Create chain with p_sampling, this is allowed since N(n) is independet of p.
+        eq_chains = [None] * nbr_eq_classes
+        for eq in range(nbr_eq_classes):
+            eq_chains[eq] = Chain_alpha(pz_tilde_sampling, alpha, init_code)
+
+            eq_class = eq_chains[eq].code.define_equivalence_class()
+            #print('is:',eq_class)
+            #print('should be:',eq)
+            op = eq_class^eq
+            #print('apply', op)
+            eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.apply_logical(op)
+            eq_class = eq_chains[eq].code.define_equivalence_class()
+            #print('is:',eq_class)
+            #print()
+            #eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.to_class(eq)
+        # apply uniform stabilizers, i.e. rain
+        randomize = True
+
+    # this is where we save all samples in a dict, to find the unique ones.
+    Nobs_n = [{}, {}, {}, {}]
+
+    # Z_E will be saved in eqdistr
+    eqdistr = np.zeros(nbr_eq_classes)
+
+    # error-model
+    beta = -log((p_error / 3) / (1 - p_error))
+
+    for eq in range(nbr_eq_classes):
+        # go to class eq and apply stabilizers
+        chain = eq_chains[eq]
+
+        out = STDC_droplet(chain, steps, randomize)
+
+        N_n = {}
+        for value in out.values():
+            if value in N_n:
+                N_n[value] += 1
+            else:
+                N_n[value] = 1
+
+        Nobs_n[eq] = N_n
+
+    return Nobs_n
 
 
 def PTRC_droplet(ladder, steps, iters, conv_mult):

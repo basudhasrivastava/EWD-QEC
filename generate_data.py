@@ -76,7 +76,9 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
                 alpha = params['alpha']
                 p_tilde = pz_tilde + 2*pz_tilde**alpha
                 p_z = pz_tilde*(1-p_tilde)
+
                 p_x = p_y = pz_tilde**alpha * (1-p_tilde)
+                
                 init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
             if params ['noise'] == 'depolarizing':
                 p_x = p_y = p_z = params['p_error']
@@ -129,6 +131,13 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
+        elif params['method'] == "STDC_N_n":
+            assert params['noise'] == 'alpha'
+            df_eq_distr = STDC_Nall_n_alpha(init_code,
+                               params['p_error'],
+                               params['p_sampling'],
+                               steps=params['steps'])
+            df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "ST":
             df_eq_distr = single_temp(init_code, params['p_error'], params['steps'])
             df_eq_distr = np.array(df_eq_distr)
