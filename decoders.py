@@ -536,15 +536,17 @@ def STDC_Nall_n_alpha(init_code, pz_tilde_sampling=None, alpha=1, steps=20000):
     else:
         # this is either 4 or 16, depending on what type of code is used.
         nbr_eq_classes = init_code.nbr_eq_classes
-        # Create chain with p_sampling, this is allowed since N(n) is independet of p.
+        # Create chain with p_sampling, this is allowed since N(n) is independent of p.
         eq_chains = [None] * nbr_eq_classes
         for eq in range(nbr_eq_classes):
             eq_chains[eq] = Chain_alpha(pz_tilde_sampling, alpha, copy.deepcopy(init_code))
 
             eq_class = eq_chains[eq].code.define_equivalence_class()
-            op = eq_class^eq
+
+            op = eq_class ^ eq
+
             eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.apply_logical(op)[0]
-            eq_class = eq_chains[eq].code.define_equivalence_class()
+
         # apply uniform stabilizers, i.e. rain
         randomize = True
 

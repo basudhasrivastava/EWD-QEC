@@ -465,7 +465,6 @@ def _define_equivalence_class(qubit_matrix):
         else:
             if qubit_matrix[0, i] == 3:
                 x_errors += 1
-
     # of z errors in the first row
     for i in range(size):
         if i % 2 == 0:
@@ -474,6 +473,14 @@ def _define_equivalence_class(qubit_matrix):
         else:
             if qubit_matrix[i, 0] == 1:
                 z_errors += 1
-
     # return the parity of the calculated #'s of errors
-    return (x_errors % 2) + 2 * (z_errors % 2)
+    if x_errors % 2 == 0:
+        if z_errors % 2 == 0:
+            return 0
+        else:
+            return 3
+    else:
+        if z_errors % 2 == 0:
+            return 1
+        else:
+            return 2
