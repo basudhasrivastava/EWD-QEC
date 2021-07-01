@@ -90,6 +90,83 @@ def conv_crit_error_based_PT_biased(nbr_errors_bottom_chain, since_burn, tops_ac
         return False, False
 
 
+def PTEQ_alpha_with_shortest(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=10, conv_criteria='error_based'):
+    nbr_eq_classes = init_code.nbr_eq_classes
+    Nc = Nc or init_code.system_size
+    if tops_burn >= TOPS:
+        print('tops_burn has to be smaller than TOPS')
+    # initialize variables
+    since_burn = 0
+    resulting_burn_in = 0
+    nbr_errors_bottom_chain = np.zeros(steps)
+    # list of class counts after burn in
+    eq = np.zeros([steps, nbr_eq_classes], dtype=np.uint32)
+    # used in error_based/majority_based instead of setting tops0 = TOPS
+    conv_start = 0
+    conv_streak = 0
+    # Convergence flag
+    convergence_reached = False
+    # initialize ladder of chains sampled at different temperatures
+    ladder = Ladder_alpha(pz_tilde, init_code, alpha, Nc, 0.5)
+
+    unique_chains = [{}, {}, {}, {}]
+    shortest = [100000, 100000, 100000, 100000]
+
+
+    # Main loop that runs until convergence or max steps (steps) are reached
+    for step in range(steps):
+        # run metropolis on every chain and perform chain swaps
+        ladder.step(iters)
+        # Get sample from eq-class of chain in lowest layer of ladder
+        current_eq = ladder.chains[0].code.define_equivalence_class()
+        # Start saving stats once burn-in period is over
+        if ladder.tops0 >= tops_burn:
+            since_burn = step - resulting_burn_in
+            eq[since_burn] = eq[since_burn - 1]
+            eq[since_burn][current_eq] += 1
+            nbr_errors_bottom_chain[since_burn] = ladder.chains[0].n_eff
+
+            if nbr_errors_bottom_chain[since_burn] < shortest[current_eq]:
+                shortest[current_eq] = nbr_errors_bottom_chain[since_burn]
+                unique_chains[current_eq] = {}
+                
+                qubit_hash = hash(ladder.chains[0].code.qubit_matrix.tobytes())
+                if qubit_hash not in unique_chains[current_eq].keys():
+                    unique_chains[current_eq][qubit_hash] = nbr_errors_bottom_chain[since_burn]
+            elif nbr_errors_bottom_chain[since_burn] == shortest[current_eq]:
+                qubit_hash = hash(ladder.chains[0].code.qubit_matrix.tobytes())
+                if qubit_hash not in unique_chains[current_eq].keys():
+                    unique_chains[current_eq][qubit_hash] = nbr_errors_bottom_chain[since_burn]
+        else:
+            # number of steps until tops0 = 2
+            resulting_burn_in += 1
+        # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
+        if conv_criteria == 'error_based' and ladder.tops0 >= TOPS:
+            accept, convergence_reached = conv_crit_error_based_PT_alpha(nbr_errors_bottom_chain, since_burn, conv_streak, SEQ, eps)
+            if accept:
+                if convergence_reached:
+                    break
+                conv_streak = ladder.tops0 - conv_start
+            else:
+                conv_streak = 0
+                conv_start = ladder.tops0
+    # print warning if loop is exited without convergence
+    else:
+        if conv_criteria == 'error_based':
+            print('\n\nWARNING: PTEQ hit max number of steps before convergence:\t', step + 1, '\n\n')
+
+    eqdistr = np.zeros(nbr_eq_classes)
+
+    beta = - np.log(pz_tilde)
+
+    for eq in range(nbr_eq_classes):
+        for eff_len in unique_chains[eq].values():
+            eqdistr[eq] += exp(-beta*eff_len)
+
+
+    return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8), (np.divide(eqdistr, sum(eqdistr)) * 100)
+
+
 def PTEQ_alpha(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=10, conv_criteria='error_based'):
     nbr_eq_classes = init_code.nbr_eq_classes
     Nc = Nc or init_code.system_size
