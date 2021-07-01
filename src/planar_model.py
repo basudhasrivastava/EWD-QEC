@@ -15,16 +15,29 @@ class Planar_code():
         self.plaquette_defects = np.zeros((size, size-1), dtype=bool)
         self.vertex_defects = np.zeros((size-1, size), dtype=bool)
 
-    def generate_random_error(self, p_error):
-        qubits = np.random.uniform(0, 1, size=(2, self.system_size, self.system_size))
-        no_error = qubits > p_error
-        error = qubits < p_error
-        qubits[no_error] = 0
-        qubits[error] = 1
-        pauli_error = np.random.randint(3, size=(2, self.system_size, self.system_size)) + 1
-        self.qubit_matrix[:, :, :] = np.multiply(qubits, pauli_error)
-        self.qubit_matrix[1, -1, :] = 0
-        self.qubit_matrix[1, :, -1] = 0
+    def generate_random_error(self, p_x, p_y, p_z):
+        size = self.system_size
+        for i in range(2):
+            for j in range(size):
+                for k in range(size):
+                    q = 0
+                    r = rand.random()
+                    if r < p_z:
+                        q = 3
+                    elif p_z < r < (p_z + p_x):
+                        q = 1
+                    elif (p_z + p_x) < r < (p_z + p_x + p_y):
+                        q = 2
+                    self.qubit_matrix[i, j, k] = q        
+        #qubits = np.random.uniform(0, 1, size=(2, self.system_size, self.system_size))
+        #no_error = qubits > p_error
+        #error = qubits < p_error
+        #qubits[no_error] = 0
+        #qubits[error] = 1
+        #pauli_error = np.random.randint(3, size=(2, self.system_size, self.system_size)) + 1
+        #self.qubit_matrix[:, :, :] = np.multiply(qubits, pauli_error)
+        #self.qubit_matrix[1, -1, :] = 0
+        #self.qubit_matrix[1, :, -1] = 0
         self.syndrom()
 
     def generate_general_noise_error(self, p_xyz):
@@ -84,6 +97,12 @@ class Planar_code():
                 elif (p_z + p_x) < r < (p_z + p_x + p_y):
                     q = 2
                 self.qubit_matrix[i, j] = q
+
+    def chain_lengths(self):
+        nx = np.count_nonzero(self.qubit_matrix[:, :] == 1)
+        ny = np.count_nonzero(self.qubit_matrix[:, :] == 2)
+        nz = np.count_nonzero(self.qubit_matrix[:, :] == 3)
+        return nx, ny, nz
 
     def count_errors(self):
         return _count_errors(self.qubit_matrix)

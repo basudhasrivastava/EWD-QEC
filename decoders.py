@@ -507,29 +507,32 @@ def STDC_general_noise_shortest(init_code, p_xyz, p_sampling=None, droplets=10, 
     # Retrun normalized eq_distr
     return (np.divide(eqdistr, sum(eqdistr)) * 100), (np.divide(eqdistr_shortest, sum(eqdistr_shortest)) * 100)
 
-def STDC_droplet_alpha(chain, steps):
+def STDC_droplet_alpha(chain, steps, alpha):
     # All unique chains will be saved in samples
-    samples = {}
-
+    seen = set()
+    seen_shortest = {}
+    shortest = 1000000
     # Do the metropolis steps and add to samples if new chains are found
     for step in range(int(steps)):
         chain.update_chain(5)
         key = hash(chain.code.qubit_matrix.tobytes())
-        if key not in samples:
+        if key not in seen:
+            seen.add(key)
             lengths = chain.code.chain_lengths()
-            samples[key] = lengths
+            eff_len = lengths[2] + alpha * sum(lengths[0:2])
+            seen_shortest[key] = eff_len
 
-    return samples
+    return seen_shortest
 
 
-def STDC_Nall_n_alpha(init_code, pz_tilde_sampling=None, alpha=1, steps=20000):
+def STDC_Nall_n_alpha(init_code, pz_tilde_sampling=None, alpha=1, pz_tilde=0.1, steps=20000):
 
     if type(init_code) == list:
         # this is either 4 or 16, depending on what type of code is used.
         nbr_eq_classes = init_code[0].nbr_eq_classes
         # make sure one init code is provided for each class
         assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
-        eq_chains = [Chain_alpha(pz_tilde_sampling, alpha, init_code) for code in init_code]
+        eq_chains = [Chain_alpha(pz_tilde_sampling, alpha, copy.deepcopy(code)) for code in init_code]
         # don't apply uniform stabilizers if low energy inits are provided
         randomize = False
 
@@ -550,28 +553,23 @@ def STDC_Nall_n_alpha(init_code, pz_tilde_sampling=None, alpha=1, steps=20000):
         # apply uniform stabilizers, i.e. rain
         randomize = True
 
-    # this is where we save all samples in a dict, to find the unique ones.
-    Nobs_n = [{}, {}, {}, {}]
-
     # Z_E will be saved in eqdistr
     eqdistr = np.zeros(nbr_eq_classes)
+
+    beta = - np.log(pz_tilde)
 
     for eq in range(nbr_eq_classes):
         # go to class eq and apply stabilizers
         chain = eq_chains[eq]
 
-        out = STDC_droplet_alpha(chain, steps)
+        out = STDC_droplet_alpha(chain, steps, alpha)
 
         N_n = {}
-        for value in out.values():
-            if value in N_n:
-                N_n[value] += 1
-            else:
-                N_n[value] = 1
+        for eff_len in out.values():
+            eqdistr[eq] += exp(-beta*eff_len)
+        out.clear()
 
-        Nobs_n[eq] = N_n
-
-    return Nobs_n
+    return (np.divide(eqdistr, sum(eqdistr)) * 100)
 
 
 def PTRC_droplet(ladder, steps, iters, conv_mult):

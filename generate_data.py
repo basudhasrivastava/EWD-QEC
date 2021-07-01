@@ -56,9 +56,19 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
             init_code = Toric_code(params['size'])
             init_code.generate_random_error(params['p_error'])
         elif params['code'] == 'planar':
-            assert params['noise'] == 'depolarizing'
+            assert params['noise'] in ['depolarizing', 'alpha']
             init_code = Planar_code(params['size'])
-            init_code.generate_random_error(params['p_error'])
+            if params['noise'] == 'depolarizing':
+                init_code.generate_random_error(params['p_error'], params['p_error'], params['p_error'])
+            elif params['noise'] == 'alpha':
+                pz_tilde = params['p_error']
+                alpha = params['alpha']
+                
+                p_tilde = pz_tilde + 2*pz_tilde**alpha
+                p = p_tilde / (1 + p_tilde)
+                p_z = pz_tilde*(1 - p)
+                p_x = p_y = pz_tilde**alpha * (1 - p)
+                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
         elif params['code'] == 'xzzx':
             init_code = xzzx_code(params['size'])
             if params['noise'] == 'biased':
@@ -89,6 +99,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
 
         
         if params['mwpm_init']: #get mwpm starting points
+            assert params['code'] == 'planar'
             init_code = class_sorted_mwpm(init_code)
             print('Starting in MWPM state')
         else: #randomize input matrix, no trace of seed.
@@ -104,7 +115,14 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
             if params['noise'] == "biased":
-                df_eq_distr = PTEQ_biased(init_code, params['p_error'], eta=params['eta'])
+
+                p = params['p_error']
+                eta = params['eta']
+
+                pz_tilde = (p / (1 + 1/eta)) / (1-p)
+                alpha = np.log(pz_tilde/(2*eta)) / np.log(pz_tilde)
+
+                df_eq_distr = PTEQ_alpha(init_code, pz_tilde, alpha=alpha)
                 if np.argmax(df_eq_distr) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
@@ -132,8 +150,9 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
         elif params['method'] == "STDC_N_n":
             assert params['noise'] == 'alpha'
             df_eq_distr = STDC_Nall_n_alpha(init_code,
-                               params['p_error'],
                                params['p_sampling'],
+                               params['alpha'],
+                               params['p_error'],
                                steps=params['steps'])
             df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "ST":
@@ -217,11 +236,11 @@ if __name__ == '__main__':
     local_dir = os.getenv('TMPDIR')
 
     params = {'code': "xzzx",
-            'method': "STDC_N_n",
-            'size': 5,
-            'noise': 'alpha',
-            'p_error': np.round((0.17 + float(array_id) / 100), decimals=2),
-            'eta': 2,
+            'method': "PTEQ",
+            'size': 3,
+            'noise': 'biased',
+            'p_error': np.round((0.2 + float(array_id) / 50), decimals=2),
+            'eta': 10,
             'alpha': 2,
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':1,
@@ -234,12 +253,12 @@ if __name__ == '__main__':
             'TOPS': 10,
             'eps': 0.1}
     # Steps is a function of code size L
-    params.update({'steps': int(1e7)})
+    params.update({'steps': int(5*params['size']**5)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id + '_size_' + str(size) + '_STDC_results.xz')
+    file_path = os.path.join(local_dir, 'data_eta10withalphaimpl_' + job_id + '_' + array_id + '.xz')
     # Generate data
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
