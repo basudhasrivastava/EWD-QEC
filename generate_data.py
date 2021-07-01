@@ -1,5 +1,5 @@
 import copy
-from decoders_biasednoise import PTEQ_biased, PTEQ_alpha
+from decoders_biasednoise import PTEQ_biased, PTEQ_alpha, PTEQ_alpha_with_shortest
 import os
 import sys
 import time
@@ -129,6 +129,13 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
             if params['noise'] == "alpha":
                 df_eq_distr = PTEQ_alpha(init_code, params['p_error'], alpha=params['alpha'])
                 if np.argmax(df_eq_distr) != eq_true:
+                    print('Failed syndrom, total now:', failed_syndroms)
+                    failed_syndroms += 1
+        if params['method'] == "PTEQ_with_shortest":
+            assert params['noise'] == 'alpha'
+            if params['noise'] == "alpha":
+                df_eq_distr = PTEQ_alpha_with_shortest(init_code, params['pz_tilde'], alpha=params['alpha'])
+                if np.argmax(df_eq_distr[0:4]) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
         if params['method'] == "PTDC":
