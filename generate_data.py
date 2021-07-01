@@ -127,7 +127,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
             if params['noise'] == "alpha":
-                df_eq_distr = PTEQ_alpha(init_code, params['pz_tilde'], alpha=params['alpha'])
+                df_eq_distr = PTEQ_alpha(init_code, params['p_error'], alpha=params['alpha'])
                 if np.argmax(df_eq_distr) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
@@ -235,11 +235,11 @@ if __name__ == '__main__':
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
 
-    params = {'code': "xzzx",
+    params = {'code': "planar",
             'method': "PTEQ",
-            'size': 3,
-            'noise': 'biased',
-            'p_error': np.round((0.2 + float(array_id) / 50), decimals=2),
+            'size': 11,
+            'noise': 'alpha',
+            'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'eta': 10,
             'alpha': 2,
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
@@ -258,8 +258,8 @@ if __name__ == '__main__':
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_eta10withalphaimpl_' + job_id + '_' + array_id + '.xz')
-    # Generate data
+    file_path = os.path.join(local_dir, 'data_alpha2planarPTEQ_' + job_id + '_' + array_id + '.xz')
+    # Generate dataii
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
     # View data file
