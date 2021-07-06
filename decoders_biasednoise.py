@@ -110,6 +110,7 @@ def PTEQ_alpha_with_shortest(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=
     ladder = Ladder_alpha(pz_tilde, init_code, alpha, Nc, 0.5)
 
     unique_chains = [{}, {}, {}, {}]
+    shortest_n = [0, 0, 0, 0]
     shortest = [100000, 100000, 100000, 100000]
 
 
@@ -127,6 +128,8 @@ def PTEQ_alpha_with_shortest(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=
             nbr_errors_bottom_chain[since_burn] = ladder.chains[0].n_eff
 
             if nbr_errors_bottom_chain[since_burn] < shortest[current_eq]:
+                shortest_n[current_eq] = 1
+                
                 shortest[current_eq] = nbr_errors_bottom_chain[since_burn]
                 unique_chains[current_eq] = {}
                 
@@ -134,6 +137,8 @@ def PTEQ_alpha_with_shortest(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=
                 if qubit_hash not in unique_chains[current_eq].keys():
                     unique_chains[current_eq][qubit_hash] = nbr_errors_bottom_chain[since_burn]
             elif nbr_errors_bottom_chain[since_burn] == shortest[current_eq]:
+                shortest_n[current_eq] += 1
+                
                 qubit_hash = hash(ladder.chains[0].code.qubit_matrix.tobytes())
                 if qubit_hash not in unique_chains[current_eq].keys():
                     unique_chains[current_eq][qubit_hash] = nbr_errors_bottom_chain[since_burn]
@@ -159,12 +164,12 @@ def PTEQ_alpha_with_shortest(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=
 
     beta = - np.log(pz_tilde)
 
-    for eq in range(nbr_eq_classes):
-        for eff_len in unique_chains[eq].values():
-            eqdistr[eq] += exp(-beta*eff_len)
+    for eq_n in range(nbr_eq_classes):
+        for eff_len in unique_chains[eq_n].values():
+            eqdistr[eq_n] += exp(-beta*eff_len)
 
 
-    return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8), (np.divide(eqdistr, sum(eqdistr)) * 100)
+    return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8), (np.divide(eqdistr, sum(eqdistr)) * 100), (np.array(shortest_n) / sum(shortest_n) * 100)
 
 
 def PTEQ_alpha(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=10, conv_criteria='error_based'):

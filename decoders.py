@@ -512,6 +512,7 @@ def STDC_droplet_alpha(chain, steps, alpha):
     seen = set()
     seen_shortest = {}
     shortest = 1000000
+    onlyshortest = False
     # Do the metropolis steps and add to samples if new chains are found
     for step in range(int(steps)):
         chain.update_chain(5)
@@ -520,7 +521,15 @@ def STDC_droplet_alpha(chain, steps, alpha):
             seen.add(key)
             lengths = chain.code.chain_lengths()
             eff_len = lengths[2] + alpha * sum(lengths[0:2])
-            seen_shortest[key] = eff_len
+            if onlyshortest:
+                if eff_len < shortest:
+                    shortest = eff_len
+                    seen_shortest = {}
+                    seen_shortest[key] = eff_len
+                elif eff_len == shortest:
+                    seen_shortest[key] = eff_len
+            else:
+                seen_shortest[key] = eff_len
 
     return seen_shortest
 

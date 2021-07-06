@@ -59,7 +59,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
             assert params['noise'] in ['depolarizing', 'alpha']
             init_code = Planar_code(params['size'])
             if params['noise'] == 'depolarizing':
-                init_code.generate_random_error(params['p_error'], params['p_error'], params['p_error'])
+                init_code.generate_random_error(params['p_error']/3, params['p_error']/3, params['p_error']/3)
             elif params['noise'] == 'alpha':
                 pz_tilde = params['p_error']
                 alpha = params['alpha']
@@ -89,7 +89,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                 
                 init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
             if params['noise'] == 'depolarizing':
-                p_x = p_y = p_z = params['p_error']
+                p_x = p_y = p_z = params['p_error']/3
                 init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
  
         # Flatten initial qubit matrix to store in dataframe
@@ -134,7 +134,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
         if params['method'] == "PTEQ_with_shortest":
             assert params['noise'] == 'alpha'
             if params['noise'] == "alpha":
-                df_eq_distr = PTEQ_alpha_with_shortest(init_code, params['pz_tilde'], alpha=params['alpha'])
+                df_eq_distr = PTEQ_alpha_with_shortest(init_code, params['p_error'], alpha=params['alpha'])
                 if np.argmax(df_eq_distr[0:4]) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
@@ -178,7 +178,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
             out = class_sorted_mwpm(copy.deepcopy(init_code))
             lens = np.zeros((4))
             for j in range(4):
-                lens[j] = out[j].count_errors()
+                lens[j] = sum(out[j].chain_lengths())
             choice = np.argmin(lens)
             df_eq_distr = np.zeros((4)).astype(np.uint8)
             df_eq_distr[choice] = 100
@@ -244,14 +244,14 @@ if __name__ == '__main__':
 
     params = {'code': "planar",
             'method': "PTEQ",
-            'size': 11,
-            'noise': 'alpha',
+            'size': 7,
+            'noise': 'depolarizing',
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
-            'eta': 10,
-            'alpha': 2,
-            'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
-            'droplets':1,
-            'mwpm_init':False,
+            'eta': 0.5,
+            'alpha': 1,
+            'p_sampling': np.round((0.05 + float(array_id) / 50), decimals=2),
+            'droplets': 1,
+            'mwpm_init': False,
             'fixed_errors':None,
             'Nc':None,
             'iters': 10,
@@ -263,9 +263,16 @@ if __name__ == '__main__':
     params.update({'steps': int(5*params['size']**5)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
+    
+    with open('/cephyr/users/hamkarl/Vera/MCMC-QEC-toric-RL/generate_data.py', 'r') as f:
+        print(f.read(), flush=True)
+    with open('/cephyr/users/hamkarl/Vera/MCMC-QEC-toric-RL/decoders.py', 'r') as f:
+        print(f.read(), flush=True)
+    with open('/cephyr/users/hamkarl/Vera/MCMC-QEC-toric-RL/decoders_biasednoise.py', 'r') as f:
+        print(f.read(), flush=True)
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_alpha2planarPTEQ_' + job_id + '_' + array_id + '.xz')
+    file_path = os.path.join(local_dir, 'data_depolPTEQd7check_' + job_id + '_' + array_id + '.xz')
     # Generate dataii
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
