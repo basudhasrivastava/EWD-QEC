@@ -36,8 +36,8 @@ class Planar_code():
         #qubits[error] = 1
         #pauli_error = np.random.randint(3, size=(2, self.system_size, self.system_size)) + 1
         #self.qubit_matrix[:, :, :] = np.multiply(qubits, pauli_error)
-        #self.qubit_matrix[1, -1, :] = 0
-        #self.qubit_matrix[1, :, -1] = 0
+        self.qubit_matrix[1, -1, :] = 0
+        self.qubit_matrix[1, :, -1] = 0
         self.syndrom()
 
     def generate_general_noise_error(self, p_xyz):
@@ -99,9 +99,9 @@ class Planar_code():
                 self.qubit_matrix[i, j] = q
 
     def chain_lengths(self):
-        nx = np.count_nonzero(self.qubit_matrix[:, :] == 1)
-        ny = np.count_nonzero(self.qubit_matrix[:, :] == 2)
-        nz = np.count_nonzero(self.qubit_matrix[:, :] == 3)
+        nx = np.count_nonzero(self.qubit_matrix[:, :, :] == 1)
+        ny = np.count_nonzero(self.qubit_matrix[:, :, :] == 2)
+        nz = np.count_nonzero(self.qubit_matrix[:, :, :] == 3)
         return nx, ny, nz
 
     def count_errors(self):

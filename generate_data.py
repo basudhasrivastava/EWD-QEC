@@ -243,7 +243,7 @@ if __name__ == '__main__':
     local_dir = os.getenv('TMPDIR')
 
     params = {'code': "planar",
-            'method': "PTEQ",
+            'method': "eMWPM",
             'size': 7,
             'noise': 'depolarizing',
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
@@ -272,7 +272,7 @@ if __name__ == '__main__':
         print(f.read(), flush=True)
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_depolPTEQd7check_' + job_id + '_' + array_id + '.xz')
+    file_path = os.path.join(local_dir, 'data_depolEMWPM2d7check_' + job_id + '_' + array_id + '.xz')
     # Generate dataii
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
