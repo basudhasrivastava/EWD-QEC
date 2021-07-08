@@ -67,7 +67,6 @@ class Ladder:
 
         # list of relative probabilities
         self.p_diff = (p_ladder[:-1] * (1 - p_ladder[1:])) / (p_ladder[1:] * (1 - p_ladder[:-1]))
-        print(self.p_diff)
 
         # list of Chains of increasing p
         self.chains = [Chain(p, copy.deepcopy(init_code)) for p in p_ladder]

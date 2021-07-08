@@ -10,6 +10,7 @@ import pandas as pd
 from src.toric_model import Toric_code
 from src.planar_model import Planar_code
 from src.xzzx_model import xzzx_code
+from src.rotated_surface_model import RotSurCode
 from src.mcmc import *
 from decoders import *
 from src.mwpm import *
@@ -23,6 +24,8 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
     elif params['code'] == 'toric':
         nbr_eq_class = 16
     elif params['code'] == 'xzzx':
+        nbr_eq_class = 4
+    elif params['code'] == 'rotated':
         nbr_eq_class = 4
     
     # Creates df
@@ -71,6 +74,28 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                 init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
         elif params['code'] == 'xzzx':
             init_code = xzzx_code(params['size'])
+            if params['noise'] == 'biased':
+                eta = params['eta']
+                p = params['p_error']
+                p_z = p * eta / (eta + 1)
+                p_x = p / (2 * (eta + 1))
+                p_y = p_x
+                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
+            if params['noise'] == 'alpha':
+                pz_tilde = params['p_error']
+                alpha = params['alpha']
+                
+                p_tilde = pz_tilde + 2*pz_tilde**alpha
+                p = p_tilde / (1 + p_tilde)
+                p_z = pz_tilde*(1 - p)
+                p_x = p_y = pz_tilde**alpha * (1 - p)
+                
+                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
+            if params['noise'] == 'depolarizing':
+                p_x = p_y = p_z = params['p_error']/3
+                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
+        elif params['code'] == 'rotated':
+            init_code = RotSurCode(params['size'])
             if params['noise'] == 'biased':
                 eta = params['eta']
                 p = params['p_error']
@@ -242,14 +267,14 @@ if __name__ == '__main__':
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
 
-    params = {'code': "planar",
-            'method': "eMWPM",
+    params = {'code': "xzzx",
+            'method': "PTEQ",
             'size': 7,
-            'noise': 'depolarizing',
-            'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
+            'noise': 'alpha',
+            'p_error': np.round((0.01 + float(array_id) / 50), decimals=2),
             'eta': 0.5,
             'alpha': 1,
-            'p_sampling': np.round((0.05 + float(array_id) / 50), decimals=2),
+            'p_sampling': 0.27,#np.round((0.01 + float(array_id) / 50), decimals=2),
             'droplets': 1,
             'mwpm_init': False,
             'fixed_errors':None,
@@ -258,7 +283,7 @@ if __name__ == '__main__':
             'conv_criteria': 'error_based',
             'SEQ': 2,
             'TOPS': 10,
-            'eps': 0.1}
+            'eps': 0.1/2}
     # Steps is a function of code size L
     params.update({'steps': int(5*params['size']**5)})
 
@@ -272,7 +297,7 @@ if __name__ == '__main__':
         print(f.read(), flush=True)
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_depolEMWPM2d7check_' + job_id + '_' + array_id + '.xz')
+    file_path = os.path.join(local_dir, 'data_d7-3aiii_' + job_id + '_' + array_id + '.xz')
     # Generate dataii
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
