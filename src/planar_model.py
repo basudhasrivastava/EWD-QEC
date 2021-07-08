@@ -128,8 +128,8 @@ class Planar_code():
     def define_equivalence_class(self):
         return _define_equivalence_class(self.qubit_matrix)
 
-    def to_class(self, eq):
-        return _to_class(eq, self.qubit_matrix)
+    # def to_class(self, eq):
+    #     return _to_class(eq, self.qubit_matrix)
 
     def syndrom(self):
         # generate vertex excitations (charge)
@@ -244,8 +244,8 @@ def _apply_logical(qubit_matrix, operator: int, X_pos=0, Z_pos=0):
 
     error_count = 0
 
-    do_X = (operator == 1 or operator == 2)
-    do_Z = (operator == 3 or operator == 2)
+    do_X = (operator == 1 or operator == 3)
+    do_Z = (operator == 2 or operator == 3)
 
     # Helper function
     def qubit_update(row, col, op):
@@ -390,20 +390,20 @@ def _define_equivalence_class(qubit_matrix):
     return (x_errors % 2) + 2 * (z_errors % 2)
 
 
-@njit('(int64, uint8[:,:,:])')
-def _to_class(eq, qubit_matrix):
-    # Returns an error chain with same syndrom as qubit_matrix, but in the class eq
-    # eq is interpreted as a 2-digit binary number (z x)
-    # xor target class with current class, to calculate what operators "connect" them
-    diff = eq ^ _define_equivalence_class(qubit_matrix)
+# @njit('(int64, uint8[:,:,:])')
+# def _to_class(eq, qubit_matrix):
+#     # Returns an error chain with same syndrom as qubit_matrix, but in the class eq
+#     # eq is interpreted as a 2-digit binary number (z x)
+#     # xor target class with current class, to calculate what operators "connect" them
+#     diff = eq ^ _define_equivalence_class(qubit_matrix)
 
-    # These lines flip x if z==1
-    # This converts a 2-bit eq-class into a 2-bit operator
-    mask = 0b10
-    xor = (mask & diff) >> 1
-    op = diff ^ xor
+#     # These lines flip x if z==1
+#     # This converts a 2-bit eq-class into a 2-bit operator
+#     mask = 0b10
+#     xor = (mask & diff) >> 1
+#     op = diff ^ xor
 
-    # Apply the operator
-    qubit_matrix, _ = _apply_logical(qubit_matrix, operator=op, X_pos=0, Z_pos=0)
+#     # Apply the operator
+#     qubit_matrix, _ = _apply_logical(qubit_matrix, operator=op, X_pos=0, Z_pos=0)
 
-    return qubit_matrix
+#     return qubit_matrix

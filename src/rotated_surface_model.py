@@ -257,8 +257,8 @@ def _apply_logical(qubit_matrix, operator: int, X_pos=0, Z_pos=0):
         return result_qubit_matrix, 0
     size = qubit_matrix.shape[0]
 
-    do_X = (operator == 1 or operator == 2)
-    do_Z = (operator == 3 or operator == 2)
+    do_X = (operator == 1 or operator == 3)
+    do_Z = (operator == 2 or operator == 3)
 
     if do_X:
         for i in range(size):
