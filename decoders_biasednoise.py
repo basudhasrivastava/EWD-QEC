@@ -218,7 +218,7 @@ def PTEQ_alpha(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=10, tops_burn=
     # print warning if loop is exited without convergence
     else:
         if conv_criteria == 'error_based':
-            print('\n\nWARNING: PTEQ hit max number of steps before convergence:\t', step + 1, '\n\n')
+            print('\n\nWARNING: PTEQ hit max number of steps before convergence:\t', step + 1, '\n\n', flush=True)
     return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
 
 

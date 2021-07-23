@@ -152,7 +152,15 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
             if params['noise'] == "alpha":
-                df_eq_distr = PTEQ_alpha(init_code, params['p_error'], alpha=params['alpha'])
+                df_eq_distr = PTEQ_alpha(init_code,
+                                        params['p_error'],
+                                        alpha=params['alpha'],
+                                        Nc=params['Nc'],
+                                        SEQ=params['SEQ'],
+                                        TOPS=params['TOPS'],
+                                        eps=params['eps'],
+                                        iters=params['iters'],
+                                        conv_criteria=params['conv_criteria'])
                 if np.argmax(df_eq_distr) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
@@ -269,21 +277,21 @@ if __name__ == '__main__':
 
     params = {'code': "xzzx",
             'method': "PTEQ",
-            'size': 7,
+            'size': 5,
             'noise': 'alpha',
-            'p_error': np.round((0.01 + float(array_id) / 50), decimals=2),
+            'p_error': np.linspace(0.01, 0.4, num=10)[int(array_id)], #np.round((0.01 + float(array_id) / 50), decimals=2),
             'eta': 0.5,
-            'alpha': 1,
-            'p_sampling': 0.27,#np.round((0.01 + float(array_id) / 50), decimals=2),
+            'alpha': 5,
+            'p_sampling': 0.4,#np.round((0.01 + float(array_id) / 50), decimals=2),
             'droplets': 1,
             'mwpm_init': False,
             'fixed_errors':None,
-            'Nc':None,
+            'Nc': None,
             'iters': 10,
             'conv_criteria': 'error_based',
             'SEQ': 2,
             'TOPS': 10,
-            'eps': 0.1/2}
+            'eps': 0.01}
     # Steps is a function of code size L
     params.update({'steps': int(5*params['size']**5)})
 
@@ -297,8 +305,8 @@ if __name__ == '__main__':
         print(f.read(), flush=True)
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_d7-3aiii_' + job_id + '_' + array_id + '.xz')
-    # Generate dataii
+    file_path = os.path.join(local_dir, 'data_5aiiiiii_' + job_id + '_' + array_id + '.xz')
+    # Generate data
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
     # View data file
