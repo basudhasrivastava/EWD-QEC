@@ -102,6 +102,9 @@ class RotSurCode():
     def apply_random_stabilizer(self):
         return _apply_random_stabilizer(self.qubit_matrix)
 
+    def apply_stabilizers_uniform(self, p=0.5):
+        return _apply_stabilizers_uniform(self.qubit_matrix, p)
+
     def define_equivalence_class(self):
         return _define_equivalence_class(self.qubit_matrix)
 
@@ -128,7 +131,6 @@ class RotSurCode():
                     row = 2 * i + 1
                     col = 0
                 self.plaquette_defects[row, col] = _find_syndrome(qubit_matrix, i, j, 3)
-        self.plot()
 
     def plot(self):
         system_size = self.system_size
@@ -418,3 +420,31 @@ def _define_equivalence_class(qubit_matrix):
     z_errors += np.count_nonzero(qubit_matrix[:, 0] == 2)
 
     return (x_errors % 2) + 2 * (z_errors % 2)
+
+
+def _apply_stabilizers_uniform(qubit_matrix, p=0.5):
+    size = qubit_matrix.shape[0]
+    result_qubit_matrix = np.copy(qubit_matrix)
+
+    # Apply full stabilizers
+    random_stabilizers = np.random.rand(size-1, size-1)
+    random_stabilizers = np.less(random_stabilizers, p)
+
+    it = np.nditer(random_stabilizers, flags=['multi_index'])
+    while not it.finished:
+        if it[0]:
+            row, col = it.multi_index
+            result_qubit_matrix, _ = _apply_stabilizer(result_qubit_matrix, row, col, 1)
+        it.iternext()
+
+    # Apply half stabilizers
+    random_stabilizers = np.random.rand(int((size - 1)/2), 4)
+    random_stabilizers = np.less(random_stabilizers, p)
+    it = np.nditer(random_stabilizers, flags=['multi_index'])
+    while not it.finished:
+        if it[0]:
+            row, col = it.multi_index
+            result_qubit_matrix, _ = _apply_stabilizer(result_qubit_matrix, row, col, 3)
+        it.iternext()
+
+    return result_qubit_matrix

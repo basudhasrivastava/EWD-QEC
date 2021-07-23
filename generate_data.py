@@ -14,24 +14,42 @@ from src.rotated_surface_model import RotSurCode
 from src.mcmc import *
 from decoders import *
 from src.mwpm import *
+from scipy import optimize
+
+
+def get_individual_error_rates(params):
+    assert params['noise'] in ['depolarizing', 'alpha', 'biased'], f'{params["noise"]} is not implemented.'
+    
+    if params['noise'] == 'biased':
+        eta = params['eta']
+        p = params['p_error']
+        p_z = p * eta / (eta + 1)
+        p_x = p / (2 * (eta + 1))
+        p_y = p_x
+    
+    if params['noise'] == 'alpha':
+        # Calculate pz_tilde from p_error (total error prob.)
+        p = params['p_error']
+        alpha = params['alpha']
+        p_tilde = p / (1 - p)
+        pz_tilde = optimize.fsolve(lambda x: x + 2*x**alpha - p_tilde, 0.5)[0]
+        
+        p_z = pz_tilde*(1 - p)
+        p_x = p_y = pz_tilde**alpha * (1 - p)
+        
+    if params['noise'] == 'depolarizing':
+        p_x = p_y = p_z = params['p_error']/3
+
+    return p_x, p_y, p_z
 
 
 # This function generates training data with help of the MCMC algorithm
 def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
 
-    if params['code'] == 'planar':
-        nbr_eq_class = 4
-    elif params['code'] == 'toric':
-        nbr_eq_class = 16
-    elif params['code'] == 'xzzx':
-        nbr_eq_class = 4
-    elif params['code'] == 'rotated':
-        nbr_eq_class = 4
-    
     # Creates df
     df = pd.DataFrame()
 
-    # Add parameters to dataframe
+    # Add parameters as first entry in dataframe
     names = ['data_nr', 'type']
     index_params = pd.MultiIndex.from_product([[-1], np.arange(1)],
                                                 names=names)
@@ -40,14 +58,17 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                             columns=['data'])
     df = df.append(df_params)
 
-    print('\nDataFrame with opened at: ' + str(file_path))
+    print('\nDataFrame opened at: ' + str(file_path))
 
-
+    # If using a fixed number of errors, let the max number of datapoins be huge
     if fixed_errors != None:
         nbr_datapoints = 10000000
     failed_syndroms = 0
 
-    df_list = []  # Initiate temporary list
+    # Initiate temporary list with results (to prevent appending to dataframe each loop)
+    df_list = []
+
+    p_x, p_y, p_z = get_individual_error_rates(params)
 
     # Loop to generate data points
     for i in range(nbr_datapoints):
@@ -55,99 +76,60 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
 
         # Initiate code
         if params['code'] == 'toric':
-            assert params['noise'] == 'depolarizing'
+            assert params['noise'] == 'depolarizing', f'{params["noise"]}-noise is not compatible with "{params["code"]}"-model.'
             init_code = Toric_code(params['size'])
             init_code.generate_random_error(params['p_error'])
         elif params['code'] == 'planar':
-            assert params['noise'] in ['depolarizing', 'alpha']
+            assert params['noise'] in ['depolarizing', 'alpha'], f'{params["noise"]}-noise is not compatible with "{params["code"]}"-model.'
             init_code = Planar_code(params['size'])
-            if params['noise'] == 'depolarizing':
-                init_code.generate_random_error(params['p_error']/3, params['p_error']/3, params['p_error']/3)
-            elif params['noise'] == 'alpha':
-                pz_tilde = params['p_error']
-                alpha = params['alpha']
-                
-                p_tilde = pz_tilde + 2*pz_tilde**alpha
-                p = p_tilde / (1 + p_tilde)
-                p_z = pz_tilde*(1 - p)
-                p_x = p_y = pz_tilde**alpha * (1 - p)
-                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
+            init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
         elif params['code'] == 'xzzx':
+            assert params['noise'] in ['depolarizing', 'alpha', 'biased'], f'{params["noise"]}-noise is not compatible with "{params["code"]}"-model.'
             init_code = xzzx_code(params['size'])
-            if params['noise'] == 'biased':
-                eta = params['eta']
-                p = params['p_error']
-                p_z = p * eta / (eta + 1)
-                p_x = p / (2 * (eta + 1))
-                p_y = p_x
-                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
-            if params['noise'] == 'alpha':
-                pz_tilde = params['p_error']
-                alpha = params['alpha']
-                
-                p_tilde = pz_tilde + 2*pz_tilde**alpha
-                p = p_tilde / (1 + p_tilde)
-                p_z = pz_tilde*(1 - p)
-                p_x = p_y = pz_tilde**alpha * (1 - p)
-                
-                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
-            if params['noise'] == 'depolarizing':
-                p_x = p_y = p_z = params['p_error']/3
-                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
+            init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
         elif params['code'] == 'rotated':
+            assert params['noise'] in ['depolarizing', 'alpha', 'biased'], f'{params["noise"]}-noise is not compatible with "{params["code"]}"-model.'
             init_code = RotSurCode(params['size'])
-            if params['noise'] == 'biased':
-                eta = params['eta']
-                p = params['p_error']
-                p_z = p * eta / (eta + 1)
-                p_x = p / (2 * (eta + 1))
-                p_y = p_x
-                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
-            if params['noise'] == 'alpha':
-                pz_tilde = params['p_error']
-                alpha = params['alpha']
-                
-                p_tilde = pz_tilde + 2*pz_tilde**alpha
-                p = p_tilde / (1 + p_tilde)
-                p_z = pz_tilde*(1 - p)
-                p_x = p_y = pz_tilde**alpha * (1 - p)
-                
-                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
-            if params['noise'] == 'depolarizing':
-                p_x = p_y = p_z = params['p_error']/3
-                init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
+            init_code.generate_random_error(p_x=p_x, p_y=p_y, p_z=p_z)
  
         # Flatten initial qubit matrix to store in dataframe
         df_qubit = copy.deepcopy(init_code.qubit_matrix)
         eq_true = init_code.define_equivalence_class()
 
-
-        
+        # Create inital error chains for algorithms to start with
         if params['mwpm_init']: #get mwpm starting points
-            assert params['code'] == 'planar'
+            assert params['code'] == 'planar', 'Can only use eMWPM for planar model.'
             init_code = class_sorted_mwpm(init_code)
             print('Starting in MWPM state')
         else: #randomize input matrix, no trace of seed.
             init_code.qubit_matrix, _ = init_code.apply_random_logical()
-            #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             print('Starting in random state')
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         if params['method'] == "PTEQ":
             if params['noise'] == 'depolarizing':
-                df_eq_distr = PTEQ(init_code, params['p_error'])
+                df_eq_distr = PTEQ(init_code,
+                                   params['p_error'],
+                                   Nc=params['Nc'],
+                                   SEQ=params['SEQ'],
+                                   TOPS=params['TOPS'],
+                                   eps=params['eps'],
+                                   iters=params['iters'],
+                                   conv_criteria=params['conv_criteria'])
                 if np.argmax(df_eq_distr) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
             if params['noise'] == "biased":
-
-                p = params['p_error']
-                eta = params['eta']
-
-                pz_tilde = (p / (1 + 1/eta)) / (1-p)
-                alpha = np.log(pz_tilde/(2*eta)) / np.log(pz_tilde)
-
-                df_eq_distr = PTEQ_alpha(init_code, pz_tilde, alpha=alpha)
+                df_eq_distr = PTEQ_biased(init_code,
+                                          params['p_error'],
+                                          eta=params['eta'],
+                                          Nc=params['Nc'],
+                                          SEQ=params['SEQ'],
+                                          TOPS=params['TOPS'],
+                                          eps=params['eps'],
+                                          iters=params['iters'],
+                                          conv_criteria=params['conv_criteria'])
                 if np.argmax(df_eq_distr) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
