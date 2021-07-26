@@ -171,10 +171,14 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                 failed_syndroms += 1
         elif params['method'] == "STDC_N_n":
             assert params['noise'] == 'alpha'
+            p_tilde_sampling = params['p_sampling'] / (1 - params['p_sampling'])
+            pz_tilde_sampling = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde_sampling, 0.5)[0]
+            p_tilde = params['p_error'] / (1 - params['p_error'])
+            pz_tilde = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde, 0.5)[0]
             df_eq_distr = STDC_Nall_n_alpha(init_code,
-                               params['p_sampling'],
-                               params['alpha'],
-                               params['p_error'],
+                               pz_tilde_sampling=pz_tilde_sampling,
+                               alpha=params['alpha'],
+                               pz_tilde=pz_tilde,
                                steps=params['steps'])
             df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "ST":
@@ -256,15 +260,18 @@ if __name__ == '__main__':
     job_id = os.getenv('SLURM_ARRAY_JOB_ID')
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
+    size = int(os.getenv('CODE_SIZE'))
+    code = str(os.getenv('CODE_TYPE'))
+    alpha = str(os.getenv('CODE_ALPHA'))
 
-    params = {'code': "xzzx",
-            'method': "PTEQ",
-            'size': 5,
+    params = {'code': code,
+            'method': "STDC_N_n",
+            'size': size,
             'noise': 'alpha',
-            'p_error': np.linspace(0.01, 0.4, num=10)[int(array_id)], #np.round((0.01 + float(array_id) / 50), decimals=2),
+            'p_error': np.linspace(0.01, 0.6, num=20)[int(array_id)], #np.round((0.01 + float(array_id) / 50), decimals=2),
             'eta': 0.5,
-            'alpha': 5,
-            'p_sampling': 0.4,#np.round((0.01 + float(array_id) / 50), decimals=2),
+            'alpha': alpha,
+            'p_sampling': 0.3,#np.round((0.01 + float(array_id) / 50), decimals=2),
             'droplets': 1,
             'mwpm_init': False,
             'fixed_errors':None,
@@ -287,7 +294,7 @@ if __name__ == '__main__':
         print(f.read(), flush=True)
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_5aiiiiii_' + job_id + '_' + array_id + '.xz')
+    file_path = os.path.join(local_dir, 'data_paper_1b_' + job_id + '_' + array_id + '.xz')
     # Generate data
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
