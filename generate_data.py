@@ -16,7 +16,6 @@ from decoders import *
 from src.mwpm import *
 from scipy import optimize
 
-
 def get_individual_error_rates(params):
     assert params['noise'] in ['depolarizing', 'alpha', 'biased'], f'{params["noise"]} is not implemented.'
     
@@ -164,23 +163,26 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "STDC":
-            df_eq_distr = STDC(init_code, params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
-            df_eq_distr = np.array(df_eq_distr)
-            if np.argmax(df_eq_distr) != eq_true:
-                print('Failed syndrom, total now:', failed_syndroms)
-                failed_syndroms += 1
-        elif params['method'] == "STDC_N_n":
-            assert params['noise'] == 'alpha'
-            p_tilde_sampling = params['p_sampling'] / (1 - params['p_sampling'])
-            pz_tilde_sampling = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde_sampling, 0.5)[0]
-            p_tilde = params['p_error'] / (1 - params['p_error'])
-            pz_tilde = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde, 0.5)[0]
-            df_eq_distr = STDC_Nall_n_alpha(init_code,
-                               pz_tilde_sampling=pz_tilde_sampling,
-                               alpha=params['alpha'],
-                               pz_tilde=pz_tilde,
-                               steps=params['steps'])
-            df_eq_distr = np.array(df_eq_distr)
+            if params['noise'] == 'depolarizing':
+                assert params['onlyshortest'] == False, "onlyshortest not implemented for deoplarizing"
+                df_eq_distr = STDC(init_code, params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+                df_eq_distr = np.array(df_eq_distr)
+                if np.argmax(df_eq_distr) != eq_true:
+                    print('Failed syndrom, total now:', failed_syndroms)
+                    failed_syndroms += 1
+            
+            if params['noise'] == 'alpha':
+                p_tilde_sampling = params['p_sampling'] / (1 - params['p_sampling'])
+                pz_tilde_sampling = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde_sampling, 0.5)[0]
+                p_tilde = params['p_error'] / (1 - params['p_error'])
+                pz_tilde = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde, 0.5)[0]
+                df_eq_distr = STDC_alpha(init_code,
+                                         pz_tilde,
+                                         params['alpha'],
+                                         params['steps'],
+                                         pz_tilde_sampling=pz_tilde_sampling,
+                                         onlyshortest=params['onlyshortest'])
+                df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "ST":
             df_eq_distr = single_temp(init_code, params['p_error'], params['steps'])
             df_eq_distr = np.array(df_eq_distr)
@@ -239,11 +241,11 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
             df_list.clear()
             print('Intermediate save point reached (writing over)')
             df.to_pickle(file_path)
-            print('Failed so far:', failed_syndroms)
+            print('Total number of failed syndroms:', failed_syndroms)
         
         # If the desired amount of errors have been achieved, break the loop and finish up
         if failed_syndroms == fixed_errors:
-            print('Desired amount of failes syndroms achieved, breaking loop.')
+            print('Desired amount of failed syndroms achieved, stopping data generation.')
             break
 
     # Adds any remaining data from temporary list to data file when run is over
@@ -260,18 +262,20 @@ if __name__ == '__main__':
     job_id = os.getenv('SLURM_ARRAY_JOB_ID')
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
+
+    # Use environment variables to get parameters
     size = int(os.getenv('CODE_SIZE'))
     code = str(os.getenv('CODE_TYPE'))
-    alpha = str(os.getenv('CODE_ALPHA'))
+    alpha = float(os.getenv('CODE_ALPHA'))
 
     params = {'code': code,
-            'method': "STDC_N_n",
+            'method': "STDC",
             'size': size,
             'noise': 'alpha',
-            'p_error': np.linspace(0.01, 0.6, num=20)[int(array_id)], #np.round((0.01 + float(array_id) / 50), decimals=2),
+            'p_error': np.linspace(0.01, 0.6, num=20)[int(array_id)],
             'eta': 0.5,
             'alpha': alpha,
-            'p_sampling': 0.3,#np.round((0.01 + float(array_id) / 50), decimals=2),
+            'p_sampling': 0.3,
             'droplets': 1,
             'mwpm_init': False,
             'fixed_errors':None,
@@ -280,21 +284,16 @@ if __name__ == '__main__':
             'conv_criteria': 'error_based',
             'SEQ': 2,
             'TOPS': 10,
-            'eps': 0.01}
+            'eps': 0.01,
+            'onlyshortest': True}
     # Steps is a function of code size L
     params.update({'steps': int(5*params['size']**5)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
-    
-    with open('/cephyr/users/hamkarl/Vera/MCMC-QEC-toric-RL/generate_data.py', 'r') as f:
-        print(f.read(), flush=True)
-    with open('/cephyr/users/hamkarl/Vera/MCMC-QEC-toric-RL/decoders.py', 'r') as f:
-        print(f.read(), flush=True)
-    with open('/cephyr/users/hamkarl/Vera/MCMC-QEC-toric-RL/decoders_biasednoise.py', 'r') as f:
-        print(f.read(), flush=True)
 
     # Build file path
     file_path = os.path.join(local_dir, 'data_paper_1b_' + job_id + '_' + array_id + '.xz')
+    
     # Generate data
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 

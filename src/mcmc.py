@@ -1,10 +1,14 @@
 import numpy as np
 import random as rand
 import copy
-
-from numba import jit, njit
-from .planar_model import _apply_random_stabilizer, _count_errors_xyz  # ???
 import pandas as pd
+
+from numba import njit
+
+from src.xzzx_model import xzzx_code, _apply_random_stabilizer as apply_stabilizer_fast_xzzx
+from src.rotated_surface_model import RotSurCode, _apply_random_stabilizer as apply_stabilizer_fast_rotated
+from src.planar_model import Planar_code, _apply_random_stabilizer as apply_stabilizer_fast_planar, _count_errors_xyz
+from src.toric_model import Toric_code, _apply_random_stabilizer as apply_stabilizer_fast_toric
 
 
 class Chain:
@@ -21,9 +25,11 @@ class Chain:
             for _ in range(iters):
                 # apply logical or stabilizer with p_logical
                 if rand.random() < self.p_logical:
-                    new_matrix, qubit_errors_change = self.code.apply_random_logical()
+                    new_matrix, (dx, dy, dz) = self.code.apply_random_logical()
                 else:
-                    new_matrix, qubit_errors_change = self.code.apply_random_stabilizer()
+                    new_matrix, (dx, dy, dz) = self.code.apply_random_stabilizer()
+
+                qubit_errors_change = dx + dy + dz
 
                 # Avoid calculating r if possible. If self.p is 0.75 r = 1 and we accept all changes
                 # If the new qubit matrix has equal or fewer errors, r >= 1 and we also accept all changes
@@ -36,14 +42,25 @@ class Chain:
 
         else:
             for _ in range(iters):
-                new_matrix, qubit_errors_change = self.code.apply_random_stabilizer()
+                new_matrix, (dx, dy, dz) = self.code.apply_random_stabilizer()
+
+                qubit_errors_change = dx + dy + dz
 
                 # acceptence ratio
                 if rand.random() < self.factor ** qubit_errors_change:
                     self.code.qubit_matrix = new_matrix
 
     def update_chain_fast(self, iters):
-        self.code.qubit_matrix = _update_chain_fast(self.code.qubit_matrix, self.factor, iters)
+        if isinstance(self.code, xzzx_code):
+            self.code.qubit_matrix = _update_chain_fast_xzzx(self.code.qubit_matrix, self.factor, iters)
+        elif isinstance(self.code, RotSurCode):
+            self.code.qubit_matrix = _update_chain_fast_rotated(self.code.qubit_matrix, self.factor, iters)
+        elif isinstance(self.code, Planar_code):
+            self.code.qubit_matrix = _update_chain_fast_planar(self.code.qubit_matrix, self.factor, iters)
+        elif isinstance(self.code, Toric_code):
+            self.code.qubit_matrix = _update_chain_fast_toric(self.code.qubit_matrix, self.factor, iters)
+        else:
+            raise ValueError("Fast chain updates not available for this code")
 
 
 class Ladder:
@@ -150,14 +167,45 @@ def _r_flip(ne_lo, ne_hi, rel_p):
 
 
 @njit(cache=True)
-def _update_chain_fast(qubit_matrix, factor, iters):
+def _update_chain_fast_xzzx(qubit_matrix, factor, iters):
     for _ in range(iters):
-        new_matrix, qubit_errors_change = _apply_random_stabilizer(qubit_matrix)
+        new_matrix, (dx, dy, dz) = apply_stabilizer_fast_xzzx(qubit_matrix)
 
         # acceptence ratio
-        if rand.random() < factor ** qubit_errors_change:
+        if rand.random() < factor ** (dx + dy + dz):
             qubit_matrix = new_matrix
     return qubit_matrix
+
+@njit(cache=True)
+def _update_chain_fast_rotated(qubit_matrix, factor, iters):
+    for _ in range(iters):
+        new_matrix, (dx, dy, dz) = apply_stabilizer_fast_rotated(qubit_matrix)
+
+        # acceptence ratio
+        if rand.random() < factor ** (dx + dy + dz):
+            qubit_matrix = new_matrix
+    return qubit_matrix
+
+@njit(cache=True)
+def _update_chain_fast_planar(qubit_matrix, factor, iters):
+    for _ in range(iters):
+        new_matrix, (dx, dy, dz) = apply_stabilizer_fast_planar(qubit_matrix)
+
+        # acceptence ratio
+        if rand.random() < factor ** (dx + dy + dz):
+            qubit_matrix = new_matrix
+    return qubit_matrix
+
+@njit(cache=True)
+def _update_chain_fast_toric(qubit_matrix, factor, iters):
+    for _ in range(iters):
+        new_matrix, (dx, dy, dz) = apply_stabilizer_fast_toric(qubit_matrix)
+
+        # acceptence ratio
+        if rand.random() < factor ** (dx + dy + dz):
+            qubit_matrix = new_matrix
+    return qubit_matrix
+
 
 @njit(cache=True)
 def _update_chain_fast_xyz(qubit_matrix, qubit_errors, factors, iters):

@@ -13,15 +13,6 @@ class RotSurCode():
         self.qubit_matrix = np.zeros((self.system_size, self.system_size), dtype=np.uint8)
         self.plaquette_defects = np.zeros((size + 1, size + 1))
 
-    # def generate_random_error(self, p_error):
-    #     qubits = np.random.uniform(0, 1, size=(self.system_size, self.system_size))
-    #     no_error = qubits > p_error
-    #     error = qubits < p_error
-    #     qubits[no_error] = 0
-    #     qubits[error] = 1
-    #     pauli_error = np.random.randint(3, size=(self.system_size, self.system_size)) + 1
-    #     self.qubit_matrix[:, :] = np.multiply(qubits, pauli_error)
-
     def generate_random_error(self, p_x, p_y, p_z):
         size = self.system_size
         for i in range(size):
@@ -75,11 +66,6 @@ class RotSurCode():
     #             elif (p_y + p_x) < r < (p_y + p_x + p_z):
     #                 q = 3
     #             self.qubit_matrix[i, j] = q
-
-    def generate_known_error(self, p_error, eta):
-        self.qubit_matrix[2, 2] = 1
-        self.qubit_matrix[1, 0] = 1
-        self.syndrome()
 
     def chain_lengths(self):
         nx = np.count_nonzero(self.qubit_matrix[:, :] == 1)
@@ -252,82 +238,38 @@ def _find_syndrome(qubit_matrix, row: int, col: int, operator: int):
 
 @njit('(uint8[:,:], int64, int64, int64)')  # Z-biased noise
 def _apply_logical(qubit_matrix, operator: int, X_pos=0, Z_pos=0):
+    
     result_qubit_matrix = np.copy(qubit_matrix)
-    error_count = 0
+
+    # List to store how errors redestribute when logical is applied
+    n_eq = [0, 0, 0, 0]
 
     if operator == 0:
-        return result_qubit_matrix, 0
+        return result_qubit_matrix, (0, 0, 0)
+    
     size = qubit_matrix.shape[0]
 
-    do_X = (operator == 1 or operator == 3)
-    do_Z = (operator == 2 or operator == 3)
+    do_X = (operator == 1 or operator == 2)
+    do_Z = (operator == 3 or operator == 2)
 
     if do_X:
         for i in range(size):
             old_qubit = result_qubit_matrix[i, X_pos]
             new_qubit = 1 ^ old_qubit
             result_qubit_matrix[i, X_pos] = new_qubit
-            if old_qubit and not new_qubit:
-                error_count -= 1
-            elif new_qubit and not old_qubit:
-                error_count += 1
+            
+            n_eq[old_qubit] -= 1
+            n_eq[new_qubit] += 1
     if do_Z:
         for i in range(size):
             old_qubit = result_qubit_matrix[Z_pos, i]
             new_qubit = 3 ^ old_qubit
             result_qubit_matrix[Z_pos, i] = new_qubit
-            if old_qubit and not new_qubit:
-                error_count -= 1
-            elif new_qubit and not old_qubit:
-                error_count += 1
+            
+            n_eq[old_qubit] -= 1
+            n_eq[new_qubit] += 1
 
-    return result_qubit_matrix, error_count
-
-
-# @njit('(uint8[:,:], int64, int64, int64)')  # Y-biased noise
-# def _apply_logical(qubit_matrix, operator: int, X_pos=0, Z_pos=0):
-#     result_qubit_matrix = np.copy(qubit_matrix)
-#     error_count = 0
-#
-#     if operator == 0:
-#         return result_qubit_matrix, 0
-#     size = qubit_matrix.shape[0]
-#
-#     do_X = (operator == 1)
-#     do_Z = (operator == 3)
-#     do_Y = (operator == 2)
-#
-#
-#     if do_X:
-#         for i in range(size):
-#             old_qubit = result_qubit_matrix[i, X_pos]
-#             new_qubit = 1 ^ old_qubit
-#             result_qubit_matrix[i, X_pos] = new_qubit
-#             if old_qubit and not new_qubit:
-#                 error_count -= 1
-#             elif new_qubit and not old_qubit:
-#                 error_count += 1
-#     if do_Z:
-#         for i in range(size):
-#             old_qubit = result_qubit_matrix[Z_pos, i]
-#             new_qubit = 3 ^ old_qubit
-#             result_qubit_matrix[Z_pos, i] = new_qubit
-#             if old_qubit and not new_qubit:
-#                 error_count -= 1
-#             elif new_qubit and not old_qubit:
-#                 error_count += 1
-#     if do_Y:
-#         for i in range(size):
-#             for j in range(size):
-#                 old_qubit = result_qubit_matrix[i, j]
-#                 new_qubit = 2 ^ old_qubit
-#                 result_qubit_matrix[i, j] = new_qubit
-#                 if old_qubit and not new_qubit:
-#                     error_count -= 1
-#                 elif new_qubit and not old_qubit:
-#                     error_count += 1
-#
-#     return result_qubit_matrix, error_count
+    return result_qubit_matrix, (n_eq[1], n_eq[2], n_eq[3])
 
 
 @njit('(uint8[:,:],)')
@@ -353,7 +295,10 @@ def _apply_stabilizer(qubit_matrix, row: int, col: int, operator: int):
 
     size = qubit_matrix.shape[0]
     result_qubit_matrix = np.copy(qubit_matrix)
-    error_count = 0
+
+    # List to store how errors redestribute when stabilizer is applied
+    n_eq = [0, 0, 0, 0]
+    
     op = 0
 
     if operator == 1:  # full
@@ -386,12 +331,11 @@ def _apply_stabilizer(qubit_matrix, row: int, col: int, operator: int):
         old_qubit = result_qubit_matrix[i[0], i[1]]
         new_qubit = op ^ old_qubit
         result_qubit_matrix[i[0], i[1]] = new_qubit
-        if old_qubit and not new_qubit:
-            error_count -= 1
-        elif new_qubit and not old_qubit:
-            error_count += 1
+        
+        n_eq[old_qubit] -= 1
+        n_eq[new_qubit] += 1
 
-    return result_qubit_matrix, error_count
+    return result_qubit_matrix, (n_eq[1], n_eq[2], n_eq[3])
 
 
 @njit('(uint8[:,:],)')
@@ -419,7 +363,16 @@ def _define_equivalence_class(qubit_matrix):
     z_errors = np.count_nonzero(qubit_matrix[:, 0] == 3)
     z_errors += np.count_nonzero(qubit_matrix[:, 0] == 2)
 
-    return (x_errors % 2) + 2 * (z_errors % 2)
+    if x_errors % 2 == 0:
+        if z_errors % 2 == 0:
+            return 0
+        else:
+            return 3
+    else:
+        if z_errors % 2 == 0:
+            return 1
+        else:
+            return 2
 
 
 def _apply_stabilizers_uniform(qubit_matrix, p=0.5):

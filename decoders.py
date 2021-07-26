@@ -507,60 +507,50 @@ def STDC_general_noise_shortest(init_code, p_xyz, p_sampling=None, droplets=10, 
     # Retrun normalized eq_distr
     return (np.divide(eqdistr, sum(eqdistr)) * 100), (np.divide(eqdistr_shortest, sum(eqdistr_shortest)) * 100)
 
-def STDC_droplet_alpha(chain, steps, alpha):
+
+def STDC_droplet_alpha(chain, steps, alpha, onlyshortest):
     # All unique chains will be saved in samples
-    seen = set()
-    seen_shortest = {}
+    all_seen = set()
+    seen_chains = {}
     shortest = 1000000
-    onlyshortest = False
     # Do the metropolis steps and add to samples if new chains are found
-    for step in range(int(steps)):
-        chain.update_chain(5)
+    for _ in range(steps):
+        chain.update_chain_fast(5)
         key = hash(chain.code.qubit_matrix.tobytes())
-        if key not in seen:
-            seen.add(key)
+        if key not in all_seen:
+            all_seen.add(key)
             lengths = chain.code.chain_lengths()
             eff_len = lengths[2] + alpha * sum(lengths[0:2])
             if onlyshortest:
                 if eff_len < shortest:
                     shortest = eff_len
-                    seen_shortest = {}
-                    seen_shortest[key] = eff_len
+                    seen_chains = {}
+                    seen_chains[key] = eff_len
                 elif eff_len == shortest:
-                    seen_shortest[key] = eff_len
+                    seen_chains[key] = eff_len
             else:
-                seen_shortest[key] = eff_len
+                seen_chains[key] = eff_len
 
-    return seen_shortest
+    return seen_chains
 
 
-def STDC_Nall_n_alpha(init_code, pz_tilde_sampling=None, alpha=1, pz_tilde=0.1, steps=20000):
+def STDC_alpha(init_code, pz_tilde, alpha, steps, pz_tilde_sampling=None, onlyshortest=True):
+
+    pz_tilde_sampling = pz_tilde_sampling if pz_tilde_sampling is not None else pz_tilde
 
     if type(init_code) == list:
-        # this is either 4 or 16, depending on what type of code is used.
         nbr_eq_classes = init_code[0].nbr_eq_classes
         # make sure one init code is provided for each class
         assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
-        eq_chains = [Chain_alpha(pz_tilde_sampling, alpha, copy.deepcopy(code)) for code in init_code]
-        # don't apply uniform stabilizers if low energy inits are provided
-        randomize = False
+        eq_chains = [Chain_alpha(copy.deepcopy(code), pz_tilde_sampling, alpha) for code in init_code]
 
     else:
-        # this is either 4 or 16, depending on what type of code is used.
         nbr_eq_classes = init_code.nbr_eq_classes
         # Create chain with p_sampling, this is allowed since N(n) is independent of p.
         eq_chains = [None] * nbr_eq_classes
         for eq in range(nbr_eq_classes):
-            eq_chains[eq] = Chain_alpha(pz_tilde_sampling, alpha, copy.deepcopy(init_code))
-
-            eq_class = eq_chains[eq].code.define_equivalence_class()
-
-            op = eq_class ^ eq
-
-            eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.apply_logical(op)[0]
-
-        # apply uniform stabilizers, i.e. rain
-        randomize = True
+            eq_chains[eq] = Chain_alpha(copy.deepcopy(init_code), pz_tilde_sampling, alpha)
+            eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.to_class(eq)
 
     # Z_E will be saved in eqdistr
     eqdistr = np.zeros(nbr_eq_classes)
@@ -571,9 +561,8 @@ def STDC_Nall_n_alpha(init_code, pz_tilde_sampling=None, alpha=1, pz_tilde=0.1, 
         # go to class eq and apply stabilizers
         chain = eq_chains[eq]
 
-        out = STDC_droplet_alpha(chain, steps, alpha)
+        out = STDC_droplet_alpha(chain, steps, alpha, onlyshortest)
 
-        N_n = {}
         for eff_len in out.values():
             eqdistr[eq] += exp(-beta*eff_len)
         out.clear()
