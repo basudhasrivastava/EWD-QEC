@@ -71,7 +71,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
 
     # Loop to generate data points
     for i in range(nbr_datapoints):
-        print('Starting generation of point nr: ' + str(i + 1))
+        print('Starting generation of point nr: ' + str(i + 1), flush=True)
 
         # Initiate code
         if params['code'] == 'toric':

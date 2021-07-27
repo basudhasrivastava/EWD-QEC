@@ -93,6 +93,11 @@ class RotSurCode():
 
     def define_equivalence_class(self):
         return _define_equivalence_class(self.qubit_matrix)
+    
+    def to_class(self, eq):
+        eq_class = self.define_equivalence_class()
+        op = eq_class ^ eq
+        return self.apply_logical(op)[0]
 
     def syndrome(self):
         size = self.qubit_matrix.shape[1]
