@@ -386,7 +386,7 @@ def STDC_general_noise(init_code, p_xyz, p_sampling=None, droplets=10, steps=200
     p_infinite = (p_xyz == 0)
 
     # error-model
-    beta = -np.log((p_xyz / 3) / (1 - p_xyz))
+    beta = -np.log((p_xyz / 3) / (1 - sum(p_xyz)))
 
     if droplets > 1:
         pool = Pool(droplets)
