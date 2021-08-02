@@ -268,11 +268,14 @@ if __name__ == '__main__':
     code = str(os.getenv('CODE_TYPE'))
     alpha = float(os.getenv('CODE_ALPHA'))
 
+    job_name = str(os.getenv('JOB_NAME'))
+    end_p = float(os.getenv('END_P'))
+
     params = {'code': code,
             'method': "STDC",
             'size': size,
             'noise': 'alpha',
-            'p_error': np.linspace(0.01, 0.6, num=20)[int(array_id)],
+            'p_error': np.linspace(0.01, end_p, num=20)[int(array_id)],
             'eta': 0.5,
             'alpha': alpha,
             'p_sampling': 0.3,
@@ -292,7 +295,7 @@ if __name__ == '__main__':
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_paper_1b_' + job_id + '_' + array_id + '.xz')
+    file_path = os.path.join(local_dir, f'data_paper_{job_name}_' + job_id + '_' + array_id + '.xz')
     
     # Generate data
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
