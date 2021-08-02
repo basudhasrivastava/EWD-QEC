@@ -41,6 +41,12 @@ class Toric_code():
 
     def count_errors(self):
         return _count_errors(self.qubit_matrix)
+    
+    def chain_lengths(self):
+        nx = np.count_nonzero(self.qubit_matrix[:, :, :] == 1)
+        ny = np.count_nonzero(self.qubit_matrix[:, :, :] == 2)
+        nz = np.count_nonzero(self.qubit_matrix[:, :, :] == 3)
+        return nx, ny, nz
 
     def apply_logical(self, operator: int, layer: int, X_pos=0, Z_pos=0):
         return _apply_logical(self.qubit_matrix, operator, X_pos, Z_pos)

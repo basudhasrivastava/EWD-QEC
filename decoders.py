@@ -135,6 +135,37 @@ def single_temp(init_code, p, max_iters):
     return mean_array
 
 
+def single_temp_alpha(init_code, pz_tilde, alpha, max_iters):
+    # check if init_code is provided as a list of inits for different classes
+    if type(init_code) == list:
+        nbr_eq_classes = init_code[0].nbr_eq_classes
+        # make sure one init per class is provided
+        assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
+        chains = [Chain(p, copy.deepcopy(code)) for code in init_code]
+
+    # if init_code is a single code, inits for every class have to be generated
+    else:
+        nbr_eq_classes = init_code.nbr_eq_classes
+        chains = [None] * nbr_eq_classes # list of chain objects
+        for eq in range(nbr_eq_classes):
+            chains[eq] = Chain_alpha(copy.deepcopy(init_code), pz_tilde_sampling, alpha)
+            chains[eq].code.qubit_matrix = chains[eq].code.to_class(eq) # apply different logical operator to each chain
+
+    nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
+    mean_array = np.zeros(nbr_eq_classes, dtype=float)
+
+    for eq in range(nbr_eq_classes):
+        for j in range(max_iters):
+            chains[eq].update_chain_fast(5)
+            nx, ny, nz = chains[eq].code.chain_lengths()
+            n_eff = nz + alpha*(nx + ny)
+            nbr_errors_chain[eq ,j] = n_eff
+            if j == max_iters-1:
+                mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
+
+    return mean_array
+
+
 def PTDC_droplet(ladder, steps, iters, conv_mult):
     samples = {}
     shortest = 2 * ladder.chains[0].code.system_size ** 2

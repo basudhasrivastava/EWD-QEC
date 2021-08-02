@@ -171,7 +171,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
             
-            if params['noise'] == 'alpha':
+            elif params['noise'] == 'alpha':
                 p_tilde_sampling = params['p_sampling'] / (1 - params['p_sampling'])
                 pz_tilde_sampling = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde_sampling, 0.5)[0]
                 p_tilde = params['p_error'] / (1 - params['p_error'])
@@ -183,12 +183,28 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                                          pz_tilde_sampling=pz_tilde_sampling,
                                          onlyshortest=params['onlyshortest'])
                 df_eq_distr = np.array(df_eq_distr)
+            else:
+                raise ValueError(f'''STDC does not support "{params['noise']}" noise''')
         elif params['method'] == "ST":
-            df_eq_distr = single_temp(init_code, params['p_error'], params['steps'])
-            df_eq_distr = np.array(df_eq_distr)
-            if np.argmin(df_eq_distr) != eq_true:
-                print('Failed syndrom, total now:', failed_syndroms)
-                failed_syndroms += 1
+            if params['noise'] == 'depolarizing':
+                df_eq_distr = single_temp(init_code, params['p_error'], params['steps'])
+                df_eq_distr = np.array(df_eq_distr)
+                if np.argmin(df_eq_distr) != eq_true:
+                    print('Failed syndrom, total now:', failed_syndroms)
+                    failed_syndroms += 1
+            elif params['noise'] == 'alpha':
+                p_tilde = params['p_error'] / (1 - params['p_error'])
+                pz_tilde = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde, 0.5)[0]
+                df_eq_distr = single_temp_alpha(init_code,
+                                                pz_tilde,
+                                                params['alpha'],
+                                                params['steps'])
+                df_eq_distr = np.array(df_eq_distr)
+                if np.argmin(df_eq_distr) != eq_true:
+                    print('Failed syndrom, total now:', failed_syndroms)
+                    failed_syndroms += 1
+            else:
+                raise ValueError(f'''ST does not support "{params['noise']}" noise''')
         elif params['method'] == "STRC":
             df_eq_distr = STRC(init_code, params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
