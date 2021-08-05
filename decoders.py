@@ -148,7 +148,7 @@ def single_temp_alpha(init_code, pz_tilde, alpha, max_iters):
         nbr_eq_classes = init_code.nbr_eq_classes
         chains = [None] * nbr_eq_classes # list of chain objects
         for eq in range(nbr_eq_classes):
-            chains[eq] = Chain_alpha(copy.deepcopy(init_code), pz_tilde_sampling, alpha)
+            chains[eq] = Chain_alpha(copy.deepcopy(init_code), pz_tilde, alpha)
             chains[eq].code.qubit_matrix = chains[eq].code.to_class(eq) # apply different logical operator to each chain
 
     nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))

@@ -287,8 +287,10 @@ if __name__ == '__main__':
     job_name = str(os.getenv('JOB_NAME'))
     end_p = float(os.getenv('END_P'))
 
+    alg = str(os.getenv('ALGORITHM'))
+
     params = {'code': code,
-            'method': "STDC",
+            'method': alg,
             'size': size,
             'noise': 'alpha',
             'p_error': np.linspace(0.01, end_p, num=20)[int(array_id)],
