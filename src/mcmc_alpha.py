@@ -146,9 +146,8 @@ def _update_chain_fast_xzzx(qubit_matrix, pz_tilde, alpha, iters):
         
         p = pz_tilde**(dz + alpha*(dx + dy))
         if p > 1 or rand.random() < p:
-            return new_matrix
-        else:
-            return qubit_matrix
+            qubit_matrix = new_matrix
+    return qubit_matrix
 
 @njit(cache=True)
 def _update_chain_fast_rotated(qubit_matrix, pz_tilde, alpha, iters):
@@ -158,9 +157,8 @@ def _update_chain_fast_rotated(qubit_matrix, pz_tilde, alpha, iters):
 
         p = pz_tilde**(dz + alpha*(dx + dy))
         if p > 1 or rand.random() < p:
-            return new_matrix
-        else:
-            return qubit_matrix
+            qubit_matrix = new_matrix
+    return qubit_matrix
 
 @njit(cache=True)
 def _update_chain_fast_planar(qubit_matrix, pz_tilde, alpha, iters):
@@ -170,9 +168,8 @@ def _update_chain_fast_planar(qubit_matrix, pz_tilde, alpha, iters):
 
         p = pz_tilde**(dz + alpha*(dx + dy))
         if p > 1 or rand.random() < p:
-            return new_matrix
-        else:
-            return qubit_matrix
+            qubit_matrix = new_matrix
+    return qubit_matrix
 
 @njit(cache=True)
 def _update_chain_fast_toric(qubit_matrix, pz_tilde, alpha, iters):
@@ -182,6 +179,5 @@ def _update_chain_fast_toric(qubit_matrix, pz_tilde, alpha, iters):
         
         p = pz_tilde**(dz + alpha*(dx + dy))
         if p > 1 or rand.random() < p:
-            return new_matrix
-        else:
-            return qubit_matrix
+            qubit_matrix = new_matrix
+    return qubit_matrix

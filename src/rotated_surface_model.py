@@ -123,7 +123,7 @@ class RotSurCode():
                     col = 0
                 self.plaquette_defects[row, col] = _find_syndrome(qubit_matrix, i, j, 3)
 
-    def plot(self):
+    def plot(self, title):
         system_size = self.system_size
         xLine = np.linspace(0, system_size - 1, system_size)
         a = range(system_size)
@@ -183,8 +183,8 @@ class RotSurCode():
         ax.axis('off')
 
         plt.axis('equal')
-        plt.show()
-        # plt.savefig('plots/graph_'+str(title)+'.png')
+        #plt.show()
+        plt.savefig('plots/graph_'+str(title)+'.png')
         # plt.close()
 
 
