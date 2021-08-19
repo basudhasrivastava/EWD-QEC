@@ -619,8 +619,8 @@ def STDC_droplet_alpha(chain, steps, alpha, onlyshortest):
             else:
                 seen_chains[key] = eff_len
     
-    if onlyshortest:
-        seen_chains = {key:shortest for key in seen_chains.keys()}
+    #if onlyshortest:
+    #    seen_chains = {key:shortest for key in seen_chains.keys()}
 
     return seen_chains
 
