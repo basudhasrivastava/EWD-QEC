@@ -142,7 +142,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                                         eps=params['eps'],
                                         iters=params['iters'],
                                         conv_criteria=params['conv_criteria'])
-                if np.argmax(df_eq_distr) != eq_true:
+                if np.argmax(df_eq_distr[0]) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
         if params['method'] == "PTEQ_with_shortest":
@@ -286,6 +286,7 @@ if __name__ == '__main__':
 
     job_name = str(os.getenv('JOB_NAME'))
     end_p = float(os.getenv('END_P'))
+    mwpm_init = bool(int(os.getenv('MWPM_INIT')))
 
     alg = str(os.getenv('ALGORITHM'))
 
@@ -298,7 +299,7 @@ if __name__ == '__main__':
             'alpha': alpha,
             'p_sampling': 0.3,
             'droplets': 1,
-            'mwpm_init': False,
+            'mwpm_init': mwpm_init,
             'fixed_errors':None,
             'Nc': None,
             'iters': 10,
@@ -306,10 +307,10 @@ if __name__ == '__main__':
             'SEQ': 2,
             'TOPS': 10,
             'eps': 0.01,
-            'onlyshortest': True}
+            'onlyshortest': False}
     # Steps is a function of code size L
-    params.update({'steps': int(5*params['size']**5)})
-
+    params.update({'steps': int(params['size']**4)})
+    
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path

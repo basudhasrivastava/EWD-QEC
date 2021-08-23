@@ -201,7 +201,9 @@ def PTEQ_alpha(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=10, tops_burn=
             since_burn = step - resulting_burn_in
             eq[since_burn] = eq[since_burn - 1]
             eq[since_burn][current_eq] += 1
-            nbr_errors_bottom_chain[since_burn] = ladder.chains[0].n_eff
+            nx, ny, nz = ladder.chains[0].code.chain_lengths()
+            n_eff = nz + ladder.chains[0].alpha * (nx + ny)
+            nbr_errors_bottom_chain[since_burn] = n_eff
         else:
             # number of steps until tops0 = 2
             resulting_burn_in += 1
@@ -219,7 +221,7 @@ def PTEQ_alpha(init_code, pz_tilde, alpha=1, Nc=None, SEQ=2, TOPS=10, tops_burn=
     else:
         if conv_criteria == 'error_based':
             print('\n\nWARNING: PTEQ hit max number of steps before convergence:\t', step + 1, '\n\n', flush=True)
-    return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
+    return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8), step*iters*Nc
 
 
 # convergence criteria used in paper and called ''felkriteriet''

@@ -95,8 +95,10 @@ class Ladder_alpha:
         # chain lengths
         pz_tilde_low = self.chains[ind_lo].pz_tilde
         pz_tilde_high = self.chains[ind_lo+1].pz_tilde
-        n_eff_low = self.chains[ind_lo].n_eff
-        n_eff_high = self.chains[ind_lo+1].n_eff
+        nx, ny, nz = self.chains[ind_lo].code.chain_lengths()
+        n_eff_low = nz + self.chains[ind_lo].alpha * (nx + ny)
+        nx, ny, nz = self.chains[ind_lo+1].code.chain_lengths()
+        n_eff_high = nz + self.chains[ind_lo+1].alpha * (nx + ny)
         return rand.random() < (pz_tilde_low/pz_tilde_high)**(n_eff_high-n_eff_low)
 
     def step(self, iters):

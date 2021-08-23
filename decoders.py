@@ -141,7 +141,7 @@ def single_temp_alpha(init_code, pz_tilde, alpha, max_iters):
         nbr_eq_classes = init_code[0].nbr_eq_classes
         # make sure one init per class is provided
         assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
-        chains = [Chain(p, copy.deepcopy(code)) for code in init_code]
+        chains = [Chain_alpha(copy.deepcopy(code), pz_tilde, alpha) for code in init_code]
 
     # if init_code is a single code, inits for every class have to be generated
     else:
@@ -593,7 +593,7 @@ def STDC_general_noise_shortest(init_code, p_xyz, p_sampling=None, droplets=10, 
 
 def STDC_droplet_alpha(chain, steps, alpha, onlyshortest):
 
-    chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+    #chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
     # All unique chains will be saved in samples
     all_seen = set()
     seen_chains = {}
