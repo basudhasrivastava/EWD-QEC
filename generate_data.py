@@ -172,13 +172,14 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                     failed_syndroms += 1
             
             elif params['noise'] == 'alpha':
+                alpha=params['alpha']
                 p_tilde_sampling = params['p_sampling'] / (1 - params['p_sampling'])
-                pz_tilde_sampling = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde_sampling, 0.5)[0]
+                pz_tilde_sampling = optimize.fsolve(lambda x: x + 2*x**alpha - p_tilde_sampling, 0.5)[0]
                 p_tilde = params['p_error'] / (1 - params['p_error'])
-                pz_tilde = optimize.fsolve(lambda x: x + 2*x**params['alpha'] - p_tilde, 0.5)[0]
+                pz_tilde = optimize.fsolve(lambda x: x + 2*x**alpha - p_tilde, 0.5)[0]
                 df_eq_distr = STDC_alpha(init_code,
                                          pz_tilde,
-                                         params['alpha'],
+                                         alpha,
                                          params['steps'],
                                          pz_tilde_sampling=pz_tilde_sampling,
                                          onlyshortest=params['onlyshortest'])
@@ -287,8 +288,10 @@ if __name__ == '__main__':
     job_name = str(os.getenv('JOB_NAME'))
     end_p = float(os.getenv('END_P'))
     mwpm_init = bool(int(os.getenv('MWPM_INIT')))
+    p_sampling = float(os.getenv('P_SAMPLE'))
 
     alg = str(os.getenv('ALGORITHM'))
+    only_shortest = bool(int(os.getenv('ONLY_SHORTEST')))
 
     params = {'code': code,
             'method': alg,
@@ -297,7 +300,7 @@ if __name__ == '__main__':
             'p_error': np.linspace(0.01, end_p, num=20)[int(array_id)],
             'eta': 0.5,
             'alpha': alpha,
-            'p_sampling': 0.3,
+            'p_sampling': p_sampling,
             'droplets': 1,
             'mwpm_init': mwpm_init,
             'fixed_errors':None,
@@ -307,9 +310,9 @@ if __name__ == '__main__':
             'SEQ': 2,
             'TOPS': 10,
             'eps': 0.01,
-            'onlyshortest': False}
+            'onlyshortest': only_shortest}
     # Steps is a function of code size L
-    params.update({'steps': int(params['size']**4)})
+    params.update({'steps': int(5*params['size']**5)})
     
     print('Nbr of steps to take if applicable:', params['steps'])
 
