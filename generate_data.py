@@ -253,7 +253,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
         
-        if (i + 1) % 50 == 0: # this needs to be sufficiently big that rsync has time to sync files before update, maybe change this to be time-based instead.
+        if (i + 1) % 50 == 0:
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -286,7 +286,9 @@ if __name__ == '__main__':
     alpha = float(os.getenv('CODE_ALPHA'))
 
     job_name = str(os.getenv('JOB_NAME'))
+    start_p = float(os.getenv('START_P'))
     end_p = float(os.getenv('END_P'))
+    num_p = int(os.getenv('NUM_P'))
     mwpm_init = bool(int(os.getenv('MWPM_INIT')))
     p_sampling = float(os.getenv('P_SAMPLE'))
 
@@ -297,7 +299,7 @@ if __name__ == '__main__':
             'method': alg,
             'size': size,
             'noise': 'alpha',
-            'p_error': np.linspace(0.01, end_p, num=20)[int(array_id)],
+            'p_error': np.linspace(start_p, end_p, num=num_p)[int(array_id)],
             'eta': 0.5,
             'alpha': alpha,
             'p_sampling': p_sampling,
@@ -317,18 +319,7 @@ if __name__ == '__main__':
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, f'data_paper_{job_name}_' + job_id + '_' + array_id + '.xz')
+    file_path = os.path.join(local_dir, f'data_paper_{job_name}_{job_id}_{array_id}.xz')
     
     # Generate data
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
-
-    # View data file
-    
-    # iterator = MCMCDataReader(file_path, params['size'])
-    # data = iterator.full()
-    # for k in range(int(len(data)/2)):
-    #     qubit_matrix = data[2*k]#.reshape(2,params['size'],params['size'])
-    #     eq_distr = data[2*k+1]
-
-    #     print(qubit_matrix)
-    #     print(eq_distr)
