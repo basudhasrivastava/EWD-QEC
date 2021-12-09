@@ -1,20 +1,22 @@
 import copy
-from decoders_biasednoise import PTEQ_biased, PTEQ_alpha, PTEQ_alpha_with_shortest
 import os
-import sys
-import time
-
 import numpy as np
 import pandas as pd
+from scipy import optimize
 
+# code models
 from src.toric_model import Toric_code
 from src.planar_model import Planar_code
 from src.xzzx_model import xzzx_code
 from src.rotated_surface_model import RotSurCode
-from src.mcmc import *
-from decoders import *
-from src.mwpm import *
-from scipy import optimize
+
+# decoders
+from decoders import MCMC, single_temp, single_temp_alpha, EWD, \
+                        EWD_general_noise, EWD_general_noise_shortest, \
+                        EWD_alpha_N_n, EWD_alpha, MCMC_biased, \
+                        MCMC_alpha_with_shortest, MCMC_alpha 
+from src.mwpm import class_sorted_mwpm, regular_mwpm, enhanced_mwpm
+
 
 def get_individual_error_rates(params):
     assert params['noise'] in ['depolarizing', 'alpha', 'biased'], f'{params["noise"]} is not implemented.'
@@ -106,9 +108,9 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
             print('Starting in random state')
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
-        if params['method'] == "PTEQ":
+        if params['method'] == "MCMC":
             if params['noise'] == 'depolarizing':
-                df_eq_distr = PTEQ(init_code,
+                df_eq_distr = MCMC(init_code,
                                    params['p_error'],
                                    Nc=params['Nc'],
                                    SEQ=params['SEQ'],
@@ -120,7 +122,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
             if params['noise'] == "biased":
-                df_eq_distr = PTEQ_biased(init_code,
+                df_eq_distr = MCMC_biased(init_code,
                                           params['p_error'],
                                           eta=params['eta'],
                                           Nc=params['Nc'],
@@ -133,7 +135,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
             if params['noise'] == "alpha":
-                df_eq_distr = PTEQ_alpha(init_code,
+                df_eq_distr = MCMC_alpha(init_code,
                                         params['p_error'],
                                         alpha=params['alpha'],
                                         Nc=params['Nc'],
@@ -145,27 +147,17 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                 if np.argmax(df_eq_distr[0]) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
-        if params['method'] == "PTEQ_with_shortest":
+        if params['method'] == "MCMC_with_shortest":
             assert params['noise'] == 'alpha'
             if params['noise'] == "alpha":
-                df_eq_distr = PTEQ_alpha_with_shortest(init_code, params['p_error'], alpha=params['alpha'])
+                df_eq_distr = MCMC_alpha_with_shortest(init_code, params['p_error'], alpha=params['alpha'])
                 if np.argmax(df_eq_distr[0:4]) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
                     failed_syndroms += 1
-        if params['method'] == "PTDC":
-            df_eq_distr, conv = PTDC(init_code, params['p_error'], params['p_sampling'])
-            if np.argmax(df_eq_distr) != eq_true:
-                print('Failed syndrom, total now:', failed_syndroms)
-                failed_syndroms += 1
-        if params['method'] == "PTRC":
-            df_eq_distr, conv = PTRC(init_code, params['p_error'], params['p_sampling'])
-            if np.argmax(df_eq_distr) != eq_true:
-                print('Failed syndrom, total now:', failed_syndroms)
-                failed_syndroms += 1
-        elif params['method'] == "STDC":
+        elif params['method'] == "EWD":
             if params['noise'] == 'depolarizing':
                 assert params['onlyshortest'] == False, "onlyshortest not implemented for deoplarizing"
-                df_eq_distr = STDC(init_code, params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+                df_eq_distr = EWD(init_code, params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
                 df_eq_distr = np.array(df_eq_distr)
                 if np.argmax(df_eq_distr) != eq_true:
                     print('Failed syndrom, total now:', failed_syndroms)
@@ -177,7 +169,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                 pz_tilde_sampling = optimize.fsolve(lambda x: x + 2*x**alpha - p_tilde_sampling, 0.5)[0]
                 p_tilde = params['p_error'] / (1 - params['p_error'])
                 pz_tilde = optimize.fsolve(lambda x: x + 2*x**alpha - p_tilde, 0.5)[0]
-                df_eq_distr = STDC_alpha(init_code,
+                df_eq_distr = EWD_alpha(init_code,
                                          pz_tilde,
                                          alpha,
                                          params['steps'],
@@ -185,7 +177,7 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                                          onlyshortest=params['onlyshortest'])
                 df_eq_distr = np.array(df_eq_distr)
             else:
-                raise ValueError(f'''STDC does not support "{params['noise']}" noise''')
+                raise ValueError(f'''EWD does not support "{params['noise']}" noise''')
         elif params['method'] == "ST":
             if params['noise'] == 'depolarizing':
                 df_eq_distr = single_temp(init_code, params['p_error'], params['steps'])
@@ -206,12 +198,6 @@ def generate(file_path, params, nbr_datapoints=10**6, fixed_errors=None):
                     failed_syndroms += 1
             else:
                 raise ValueError(f'''ST does not support "{params['noise']}" noise''')
-        elif params['method'] == "STRC":
-            df_eq_distr = STRC(init_code, params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
-            df_eq_distr = np.array(df_eq_distr)
-            if np.argmax(df_eq_distr) != eq_true:
-                print('Failed syndrom, total now:', failed_syndroms)
-                failed_syndroms += 1
         elif params['method'] == "eMWPM":
             out = class_sorted_mwpm(copy.deepcopy(init_code))
             lens = np.zeros((4))

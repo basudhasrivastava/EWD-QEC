@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 from random import random
 from numba import njit
 import random as rand
-from scipy import optimize
 
 
 class Planar_code():

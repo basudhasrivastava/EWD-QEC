@@ -2,9 +2,8 @@ import numpy as np
 import random as rand
 import copy
 
-from numba import jit, njit
+from numba import njit
 from .planar_model import _apply_random_stabilizer  # ???
-import pandas as pd
 
 
 class Chain_biased:
@@ -122,33 +121,6 @@ class Ladder_biased:
         if self.chains[0].flag == 1:
             self.tops0 += 1
             self.chains[0].flag = 0
-
-
-# This is the object we crate to read a file during training
-class MCMCDataReader:
-    def __init__(self, file_path, size):
-        # file_path needs to be dataframe in pickle format
-        self.__file_path = file_path
-        # size is the size of the toric code
-        self.__size = size
-        try:
-            self.__df = pd.read_pickle(file_path)
-            self.__capacity = self.__df.index[-1][0] + 1  # The number of data samples in the dataset
-        except:  # TODO fix exception
-            print('No input file for MCMCDataReader')
-        self.__current_index = 0
-
-    def full(self):
-        return self.__df.to_numpy().ravel()
-
-    def has_next(self):
-        return self.__current_index < self.__capacity
-
-    def current_index(self):
-        return self.__current_index
-
-    def get_capacity(self):
-        return self.__capacity
 
 
 @njit('(int64, int64, float64)')

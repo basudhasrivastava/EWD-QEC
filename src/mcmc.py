@@ -1,7 +1,6 @@
 import numpy as np
 import random as rand
 import copy
-import pandas as pd
 
 from numba import njit
 
@@ -120,15 +119,15 @@ class Ladder:
             self.chains[0].flag = 0
 
 
-class Chain_xyz:
-    def __init__(self, p_xyz, code):
-        self.code = code
-        self.p_xyz = p_xyz
-        self.factors = self.p_xyz / (1.0 - self.p_xyz.sum())  # rename me
-        self.qubit_errors = code.count_errors_xyz()
+# class Chain_xyz:
+#     def __init__(self, p_xyz, code):
+#         self.code = code
+#         self.p_xyz = p_xyz
+#         self.factors = self.p_xyz / (1.0 - self.p_xyz.sum())  # rename me
+#         self.qubit_errors = code.count_errors_xyz()
 
-    def update_chain_fast(self, iters):
-        self.code.qubit_matrix, self.qubit_errors = _update_chain_fast_xyz(self.code.qubit_matrix, self.qubit_errors, self.factors, iters)
+#     def update_chain_fast(self, iters):
+#         self.code.qubit_matrix, self.qubit_errors = _update_chain_fast_xyz(self.code.qubit_matrix, self.qubit_errors, self.factors, iters)
 
 
 @njit('(int64, int64, float64)')
@@ -180,15 +179,15 @@ def _update_chain_fast_toric(qubit_matrix, factor, iters):
     return qubit_matrix
 
 
-@njit(cache=True)
-def _update_chain_fast_xyz(qubit_matrix, qubit_errors, factors, iters):
-    for _ in range(iters):
-        new_matrix, _ = _apply_random_stabilizer(qubit_matrix)
-        qubit_errors_new = _count_errors_xyz(new_matrix)
-        qubit_errors_change = qubit_errors_new - qubit_errors
+# @njit(cache=True)
+# def _update_chain_fast_xyz(qubit_matrix, qubit_errors, factors, iters):
+#     for _ in range(iters):
+#         new_matrix, _ = _apply_random_stabilizer(qubit_matrix)
+#         qubit_errors_new = _count_errors_xyz(new_matrix)
+#         qubit_errors_change = qubit_errors_new - qubit_errors
 
-        # acceptence ratio
-        if rand.random() < (factors ** qubit_errors_change).prod():
-            qubit_matrix = new_matrix
-            qubit_errors = qubit_errors_new
-    return qubit_matrix, qubit_errors
+#         # acceptence ratio
+#         if rand.random() < (factors ** qubit_errors_change).prod():
+#             qubit_matrix = new_matrix
+#             qubit_errors = qubit_errors_new
+#     return qubit_matrix, qubit_errors
