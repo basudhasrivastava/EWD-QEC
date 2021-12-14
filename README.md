@@ -15,7 +15,7 @@ Karl Hammar, Alexei Orekhov, Patrik Wallin Hybelius, Anna Katariina Wisakanto, B
 ```bash
 git clone git@github.com:QEC-project-2020/EWD-QEC.git
 ```
-- Install the requirements with venv
+- Install the requirements with venv:
 
 ```bash
 python -m venv ewd
@@ -27,10 +27,7 @@ pip install -r requirements.txt
 To run a simple test of the decoder, the following file is provided:
 - run.py
 
-The test script will call upon:
-- generate_data.py
-
-which is the main data generation script. This script will in turn run the desired decoder for the desired number of steps on the desired code. This is where syndroms are generated and data is saved.
+This script will in turn run the desired decoder for the desired number of steps on the desired code. This is where syndroms are generated and data is saved.
 
 The high level decoding code is found in ***decoders.py***, and the more fine-grained details of the MCMC simulations and code definitions can be found in the ***src*** directory.
 
