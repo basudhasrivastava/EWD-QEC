@@ -76,89 +76,89 @@ def _apply_logical(qubit_matrix, operator: int, X_pos=0, Z_pos=0):
     size = qubit_matrix.shape[1]
     op = 0
 
-    do_X = (operator == 1)
-    do_Z = (operator == 3)
-    do_Y = (operator == 2)
-
-    # most likely logical operators for X-biased noise
+#     # most likely logical operators for Z-biased noise
+    
+    do_X = (operator == 1 or operator == 2)
+    do_Z = (operator == 3 or operator == 2)
 
     if do_X:
-        for i in range(2*size-2):
-            old_qubit = result_qubit_matrix[i, 0]
-            op = 1
+        for i in range(2*size):
+            old_qubit = result_qubit_matrix[i, X_pos]
+            if X_pos % 2 == 0:
+                if i % 4 == 0:
+                    op = 1
+                elif i % 4 == 1:
+                    op = 2
+                elif i % 4 == 2:
+                    op = 3
+                elif i % 4 == 3:
+                    op = 0
+            else:
+                if i % 4 == 0:
+                    op = 0
+                elif i % 4 == 1:
+                    op = 3
+                elif i % 4 == 2:
+                    op = 1
+                elif i % 4 == 3:
+                    op = 2
             new_qubit = op ^ old_qubit
-            result_qubit_matrix[i, 0] = new_qubit
+            result_qubit_matrix[i, X_pos] = new_qubit
             n_eq[old_qubit] -= 1
             n_eq[new_qubit] += 1
-        old_qubit = result_qubit_matrix[2*size-1, 1]
-        op = 3
-        new_qubit = op ^ old_qubit
-        result_qubit_matrix[2*size-1, 1] = new_qubit
-        n_eq[old_qubit] -= 1
-        n_eq[new_qubit] += 1
     if do_Z:
-        for i in range(2):
-            for j in range(size-1):
-                old_qubit = result_qubit_matrix[2*size-1-i, j]
-                op = 1
-                new_qubit = op ^ old_qubit
-                result_qubit_matrix[2*size-1-i, j] = new_qubit
-                n_eq[old_qubit] -= 1
-                n_eq[new_qubit] += 1
-        old_qubit = result_qubit_matrix[2*size-1, size-1]
-        op = 3
-        new_qubit = op ^ old_qubit
-        result_qubit_matrix[2*size-1, size-1] = new_qubit
-        n_eq[old_qubit] -= 1
-        n_eq[new_qubit] += 1
-    if do_Y:
-        for i in range(2*size):
-            for j in range(size):
-                old_qubit = result_qubit_matrix[i, j]
-                op = 1
-                new_qubit = op ^ old_qubit
-                result_qubit_matrix[i, j] = new_qubit
-                n_eq[old_qubit] -= 1
-                n_eq[new_qubit] += 1
+        for i in range(size):
+            old_qubit = result_qubit_matrix[2*i, i]
+            op = 3
+            new_qubit = op ^ old_qubit
+            result_qubit_matrix[2*i, i] = new_qubit
+            n_eq[old_qubit] -= 1
+            n_eq[new_qubit] += 1
+    
+#     # most likely logical operators for X-biased noise
 
-    # do_X = (operator == 1 or operator == 2)
-    # do_Z = (operator == 3 or operator == 2)
+#     do_X = (operator == 1)
+#     do_Z = (operator == 3)
+#     do_Y = (operator == 2)
 
-    # most likely logical operators for Z-biased noise
-
-    # if do_X:
-    #     for i in range(2*size):
-    #         old_qubit = result_qubit_matrix[i, X_pos]
-    #         if X_pos % 2 == 0:
-    #             if i % 4 == 0:
-    #                 op = 1
-    #             elif i % 4 == 1:
-    #                 op = 2
-    #             elif i % 4 == 2:
-    #                 op = 3
-    #             elif i % 4 == 3:
-    #                 op = 0
-    #         else:
-    #             if i % 4 == 0:
-    #                 op = 0
-    #             elif i % 4 == 1:
-    #                 op = 3
-    #             elif i % 4 == 2:
-    #                 op = 1
-    #             elif i % 4 == 3:
-    #                 op = 2
-    #         new_qubit = op ^ old_qubit
-    #         result_qubit_matrix[i, X_pos] = new_qubit
-    #         n_eq[old_qubit] -= 1
-    #         n_eq[new_qubit] += 1
-    # if do_Z:
-    #     for i in range(size):
-    #         old_qubit = result_qubit_matrix[2*i, i]
-    #         op = 3
-    #         new_qubit = op ^ old_qubit
-    #         result_qubit_matrix[2*i, i] = new_qubit
-    #         n_eq[old_qubit] -= 1
-    #         n_eq[new_qubit] += 1
+#     if do_X:
+#         for i in range(2*size-2):
+#             old_qubit = result_qubit_matrix[i, 0]
+#             op = 1
+#             new_qubit = op ^ old_qubit
+#             result_qubit_matrix[i, 0] = new_qubit
+#             n_eq[old_qubit] -= 1
+#             n_eq[new_qubit] += 1
+#         old_qubit = result_qubit_matrix[2*size-1, 1]
+#         op = 3
+#         new_qubit = op ^ old_qubit
+#         result_qubit_matrix[2*size-1, 1] = new_qubit
+#         n_eq[old_qubit] -= 1
+#         n_eq[new_qubit] += 1
+#     if do_Z:
+#         for i in range(2):
+#             for j in range(size-1):
+#                 old_qubit = result_qubit_matrix[2*size-1-i, j]
+#                 op = 1
+#                 new_qubit = op ^ old_qubit
+#                 result_qubit_matrix[2*size-1-i, j] = new_qubit
+#                 n_eq[old_qubit] -= 1
+#                 n_eq[new_qubit] += 1
+#         old_qubit = result_qubit_matrix[2*size-1, size-1]
+#         op = 3
+#         new_qubit = op ^ old_qubit
+#         result_qubit_matrix[2*size-1, size-1] = new_qubit
+#         n_eq[old_qubit] -= 1
+#         n_eq[new_qubit] += 1
+#     if do_Y:
+#         for i in range(2*size):
+#             for j in range(size):
+#                 old_qubit = result_qubit_matrix[i, j]
+#                 op = 1
+#                 new_qubit = op ^ old_qubit
+#                 result_qubit_matrix[i, j] = new_qubit
+#                 n_eq[old_qubit] -= 1
+#                 n_eq[new_qubit] += 1
 
     return result_qubit_matrix, (n_eq[1], n_eq[2], n_eq[3])
 
